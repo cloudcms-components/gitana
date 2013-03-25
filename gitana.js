@@ -1,5 +1,5 @@
 /*
-Copyright 2011 Gitana Software, Inc.
+Copyright 2013 Gitana Software, Inc.
 
 Licensed under the Apache License, Version 2.0 (the "License"); 
 you may not use this file except in compliance with the License. 
@@ -716,7 +716,7 @@ if (!JSON) {
          * Configuration options should look like:
          *
          * {
-         *    "clientId": {String} the oauth2 client id,
+         *    "clientKey": {String} the oauth2 client id,
          *    "clientSecret": [String] the oauth2 client secret,
          *    "baseURL": [String] the relative URI path of the base URL (assumed to be "/proxy"),
          *    "locale": [String] optional locale (assumed to be en_US)
@@ -737,7 +737,6 @@ if (!JSON) {
             // build config
             var config = {
                 "clientKey": null,
-                "clientId": null,
                 "clientSecret": null,
                 "baseURL": "/proxy",
                 "locale": null,
@@ -766,12 +765,9 @@ if (!JSON) {
 
             // set up our oAuth2 connection
             var options = {
-                "clientId": config.clientId,
+                "clientKey": config.clientKey,
                 "clientSecret": config.clientSecret
             };
-            if (config.clientKey) {
-                options["clientId"] = config.clientKey;
-            }
             if (this.baseURL)
             {
                 options.baseURL = this.baseURL;
@@ -828,6 +824,20 @@ if (!JSON) {
             {
                 return config;
             };
+
+            this.getHttpHeaders = function()
+            {
+                var self = this;
+
+                var headers = {};
+
+                if (self.http && self.http.getBearerAuthorizationHeader())
+                {
+                    headers["Authorization"] = self.http.getBearerAuthorizationHeader();
+                }
+
+                return headers;
+            }
         },
 
         /**
@@ -1001,7 +1011,9 @@ if (!JSON) {
                     var u = window.location.protocol + "//" + window.location.host;
                     if (window.location.host.indexOf(":") == -1)
                     {
-                        u += ":" + window.location.port;
+                        if (window.location.port) {
+                            u += ":" + window.location.port;
+                        }
                     }
                     url = u + url;
                 }
@@ -1355,7 +1367,7 @@ if (!JSON) {
             // run with this = platform
             var doAuthenticate = function()
             {
-                var chain = this;
+                var platform = this;
 
                 //
                 // authenticate via the authentication flow
@@ -1382,27 +1394,16 @@ if (!JSON) {
                         // on the Gitana server
                         Gitana.deleteCookie("JSESSIONID", "/");
 
-                        // reload the platform
-                        // NOTE: this is actually the first load since we created it by hand originally
-                        Chain(result).then(function() {
-
-                            this.reload().then(function() {
-
-                                // copy back into our result object (we're on a copy right now)
-                                result.loadFrom(this);
-
-                                // manually handle next()
-                                chain.next();
-                            });
-
-                        });
+                        // now continue the platform chain after we reload
+                        platform.reload();
+                        platform.next();
 
                     }, function(http) {
 
                         // if authentication fails, respond to custom auth failure handler
                         if (authFailureHandler)
                         {
-                            authFailureHandler.call(chain, http);
+                            authFailureHandler.call(platform, http);
                         }
 
                     });
@@ -1427,27 +1428,21 @@ if (!JSON) {
                         // store reference to platform
                         driver.currentPlatform = result;
 
-                        // reload the platform
-                        // NOTE: this is actually the first load since we created it by hand originally
-                        Chain(result).then(function() {
+                        // TODO: fix this
+                        // kill the JSESSIONID cookie which comes back from the proxy and ties us to a session
+                        // on the Gitana server
+                        Gitana.deleteCookie("JSESSIONID", "/");
 
-                            this.reload().then(function() {
-
-                                // copy back into our result object (we're on a copy right now)
-                                result.loadFrom(this);
-
-                                // manually handle next()
-                                chain.next();
-                            });
-
-                        });
+                        // now continue the platform chain after we reload
+                        platform.reload();
+                        platform.next();
 
                     }, function(http) {
 
                         // if authentication fails, respond to custom auth failure handler
                         if (authFailureHandler)
                         {
-                            authFailureHandler.call(chain, http);
+                            authFailureHandler.call(platform, http);
                         }
 
                     });
@@ -1478,27 +1473,16 @@ if (!JSON) {
                         // on the Gitana server
                         Gitana.deleteCookie("JSESSIONID", "/");
 
-                        // reload the platform
-                        // NOTE: this is actually the first load since we created it by hand originally
-                        Chain(result).then(function() {
-
-                            this.reload().then(function() {
-
-                                // copy back into our result object (we're on a copy right now)
-                                result.loadFrom(this);
-
-                                // manually handle next()
-                                chain.next();
-                            });
-
-                        });
+                        // now continue the platform chain after we reload
+                        platform.reload();
+                        platform.next();
 
                     }, function(http) {
 
                         // if authentication fails, respond to custom auth failure handler
                         if (authFailureHandler)
                         {
-                            authFailureHandler.call(chain, http);
+                            authFailureHandler.call(platform, http);
                         }
 
                     });
@@ -1528,27 +1512,16 @@ if (!JSON) {
                         // on the Gitana server
                         Gitana.deleteCookie("JSESSIONID", "/");
 
-                        // reload the platform
-                        // NOTE: this is actually the first load since we created it by hand originally
-                        Chain(result).then(function() {
-
-                            this.reload().then(function() {
-
-                                // copy back into our result object (we're on a copy right now)
-                                result.loadFrom(this);
-
-                                // manually handle next()
-                                chain.next();
-                            });
-
-                        });
+                        // now continue the platform chain after we reload
+                        platform.reload();
+                        platform.next();
 
                     }, function(http) {
 
                         // if authentication fails, respond to custom auth failure handler
                         if (authFailureHandler)
                         {
-                            authFailureHandler.call(chain, http);
+                            authFailureHandler.call(platform, http);
                         }
 
                     });
@@ -1571,29 +1544,31 @@ if (!JSON) {
                     "success": function(response)
                     {
                         var config = JSON.parse(response.text);
-
-                        var options = {
-                            "clientId": config.clientKey
-                        };
-                        platform.getDriver().updateOptions(options);
-
-                        var stackInfo = {};
-                        if (config.stackId)
+                        if (config.clientKey)
                         {
-                            stackInfo.id = config.stackId;
-                        }
-                        if (config.stackDataStores)
-                        {
-                            stackInfo.datastores = config.stackDataStores;
-                        }
-                        platform.getDriver().setStackInfo(stackInfo);
+                            var options = {
+                                "clientKey": config.clientKey
+                            };
+                            platform.getDriver().updateOptions(options);
 
-                        var applicationInfo = {};
-                        if (config.applicationId)
-                        {
-                            applicationInfo.id = config.applicationId;
+                            var stackInfo = {};
+                            if (config.stackId)
+                            {
+                                stackInfo.id = config.stackId;
+                            }
+                            if (config.stackDataStores)
+                            {
+                                stackInfo.datastores = config.stackDataStores;
+                            }
+                            platform.getDriver().setStackInfo(stackInfo);
+
+                            var applicationInfo = {};
+                            if (config.applicationId)
+                            {
+                                applicationInfo.id = config.applicationId;
+                            }
+                            platform.getDriver().setApplicationInfo(applicationInfo);
                         }
-                        platform.getDriver().setApplicationInfo(applicationInfo);
 
                         if (callback)
                         {
@@ -1708,6 +1683,7 @@ if (!JSON) {
     // directory
     Gitana.TypedIDConstants.TYPE_DIRECTORY = "directory";
     Gitana.TypedIDConstants.TYPE_IDENTITY = "identity";
+    Gitana.TypedIDConstants.TYPE_CONNECTION = "connection";
 
     // domain
     Gitana.TypedIDConstants.TYPE_DOMAIN = "domain";
@@ -1752,6 +1728,7 @@ if (!JSON) {
     // web host
     Gitana.TypedIDConstants.TYPE_WEB_HOST = "webhost";
     Gitana.TypedIDConstants.TYPE_AUTO_CLIENT_MAPPING = "autoClientMapping";
+    Gitana.TypedIDConstants.TYPE_TRUSTED_DOMAIN_MAPPING = "trustedDomainMapping";
     Gitana.TypedIDConstants.TYPE_DEPLOYED_APPLICATION = "deployedApplication";
 
     Gitana.handleJobCompletion = function(chain, cluster, jobId, synchronous)
@@ -1821,8 +1798,12 @@ if (!JSON) {
      * Connects to a Gitana platform.
      *
      * @param config
-     * @param [callback] function(err) that receives either the error or connection context information
-     *                   in the event of an application context being loaded (this)
+     * @param [callback] optional callback function that gets called once the server has been connected to.  If no
+     *                   "application" config parameter is present, then the callback function is called with the this
+     *                   context set to the platform.  If an "application" config parameter is present, then the stack
+     *                   for the application is loaded and references are resolved and the this context will be the
+     *                   app helper instance.  This callback also acts as an error handler for any authentication issues.
+     *                   If an auth error happens, the err is passed to the callback as the first and only argument.
      *
      * @return {*}
      */
@@ -1834,8 +1815,11 @@ if (!JSON) {
             config = null;
         }
 
+        var missingConfig = false;
+
         if (!config) {
             config = {};
+            missingConfig = true;
         }
 
         if (Gitana.isString(config)) {
@@ -1861,9 +1845,15 @@ if (!JSON) {
             if (appConfig.application) {
                 this.app(function(err) {
                     if (callback) {
+                        // NOTE: this == app helper
                         callback.call(this, err);
                     }
                 });
+            }
+            else {
+                if (callback) {
+                    callback.call(this);
+                }
             }
         };
 
@@ -1880,6 +1870,12 @@ if (!JSON) {
             platform = new Gitana.Platform(platform.getCluster(), platform);
             setupContext.call(platform);
             return Chain(platform);
+        }
+
+        // if they didn't provide a config and made it this far, then lets assume a cookie based config?
+        if (missingConfig)
+        {
+            config["cookie"] = true;
         }
 
         // load it up
@@ -1915,6 +1911,13 @@ if (!JSON) {
         var platform = Gitana.PLATFORM_CACHE(key);
         if (platform)
         {
+            // removed the cached apphelper, if one is around
+            var appId = platform.getDriver().getOriginalConfiguration().application;
+            if (appId)
+            {
+                delete Gitana.APPS[appId];
+            }
+
             platform.getDriver().destroy();
             Gitana.PLATFORM_CACHE(key, null);
         }
@@ -1924,9 +1927,12 @@ if (!JSON) {
     Gitana.requestCount = 0;
 
     // version of the driver
-    Gitana.VERSION = "0.2.1";
+    Gitana.VERSION = "1.0.3";
 
-    window.Gitana = Gitana;
+    // allow for optional global assignment
+    if (window && !window.Gitana) {
+        window.Gitana = Gitana;
+    }
 
 })(window);(function(global) {
     Gitana.Error = function () {
@@ -2408,7 +2414,7 @@ if (!JSON) {
             }
 
             // client
-            var clientId = options.clientId;
+            var clientKey = options.clientKey;
             var clientSecret = options.clientSecret;
 
             // authorization flow
@@ -2452,7 +2458,7 @@ if (!JSON) {
 
             this.getClientAuthorizationHeader = function() {
 
-                var basicString = clientId + ":";
+                var basicString = clientKey + ":";
                 if (clientSecret)
                 {
                     basicString += clientSecret;
@@ -2807,6 +2813,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return transparent;
             }
         })();
+        // provides consume behavior for copy into (from another object into this one)
+        if (!proxiedObject.__copyState) {
+            proxiedObject.__copyState = function(other) {
+                Gitana.copyInto(this, other);
+            };
+        }
+
 
 
 
@@ -2995,14 +3008,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 // only do this if the subchain is transparent
                 if (subchain.__transparent())
                 {
-                    Gitana.copyInto(subchain, this);
+                    //Gitana.copyInto(subchain, this);
+                    subchain.__copyState(this);
                 }
 
-                // tell it to run
-                //if (subchain.beforeChainRun)
-                //{
-                //    subchain.beforeChainRun.call(subchain);
-                //}
+                // BEFORE CHAIN RUN CALLBACK
+                // this provides a way for a chained object to adjust its method signatures and state ahead
+                // of actually executing, usually based on some data that was loaded (such as the type of object
+                // like a domain user or group)
+                //
+                if (subchain.beforeChainRun)
+                {
+                    subchain.beforeChainRun.call(subchain);
+                }
 
                 subchain.run();
             }
@@ -3030,10 +3048,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             var subchain = Chain(object);
             subchain.__parent(this);
 
-            //if (subchain.beforeChainRun)
-            //{
-            //    subchain.beforeChainRun.call(subchain);
-            //}
+            // BEFORE CHAIN RUN CALLBACK
+            // this provides a way for a chained object to adjust its method signatures and state ahead
+            // of actually executing, usually based on some data that was loaded (such as the type of object
+            // like a domain user or group)
+            //
+            if (subchain.beforeChainRun)
+            {
+                subchain.beforeChainRun.call(subchain);
+            }
 
             if (!noAutoAdd)
             {
@@ -3082,7 +3105,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                     if (this.__transparent())
                     {
                         Gitana.deleteProperties(this.__parent());
-                        Gitana.copyInto(this.__parent(), this);
+                        //Gitana.copyInto(this.__parent(), this);
+                        this.__parent().__copyState(this);
                     }
 
                     // inform parent that we're done
@@ -3195,7 +3219,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         };
 
 
+        // each object that gets chained provides a clone() method
         // if there is already a clone property, don't override it
+        // this allows implementation classes to control how they get cloned
         if (!proxiedObject.clone)
         {
             /**
@@ -3203,18 +3229,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
              */
             proxiedObject.clone = function()
             {
-                // based on Crockford's solution for clone using prototype on function
-                // this copies all properties and methods
-                // includes copies of chain functions
-                function F() {}
-                F.prototype = this;
-                var object = new F();
-                //object["__proto__"] = null;
-
-                // copy properties
-                Gitana.copyInto(object, this);
-
-                return Chain(object);
+                return Chain.clone(this);
             };
         }
 
@@ -3240,17 +3255,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             delete o.__original;
         }
 
-        // wraps the object into a proxy
-        function Z() {}
-        Z.prototype = o;
-        var proxy = new Z();
-        //proxy["__proto__"] = null;
+        // clone the object using clone() method
+        var proxy = null;
+        if (o.clone) {
+            proxy = o.clone();
+        } else {
+            proxy = Chain.clone(o);
+        }
         proxy.__original = function() {
             return o;
         };
-
-        // copy properties
-        Gitana.copyInto(proxy, o);
 
         return proxy;
     };
@@ -3297,6 +3311,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             console.log("Chain[" + identifier + "] " + text);
         }
     };
+    // clone workhorse method
+    Chain.clone = function(object)
+    {
+        // based on Crockford's solution for clone using prototype on function
+        // this copies all properties and methods
+        // includes copies of chain functions
+        function F() {}
+        F.prototype = object;
+        var clone = new F();
+
+        // copy properties
+        Gitana.copyInto(clone, object);
+
+        return clone;
+    };
 
     Chain.idCount = 0;
 
@@ -3319,6 +3348,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             var self = this;
 
             this.base();
+
+            /**
+             * Override the Chain.__copyState method so that it utilizes a base method that we can override
+             * on a per-class basis.
+             */
+            this.__copyState = function(other) {
+                Gitana.copyInto(this, other);
+                this.chainCopyState(other);
+            };
+
 
 
             ///////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -3472,6 +3511,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
              */
             this.chainCreateEx = function(chainable, object, createUri, readUri)
             {
+                var self = this;
+
                 return this.link(chainable).then(function() {
 
                     var chain = this;
@@ -3786,7 +3827,18 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
                 return identifiers;
             }
+        },
 
+        /**
+         * Used internally during chain copy going forward or backward through the chain.
+         *
+         * This is wired into the Chain.__copyState method and allows a convenient way to override
+         * chain copy behavior on a per-object-type basis.
+         *
+         * @param otherObject
+         */
+        chainCopyState: function(otherObject)
+        {
         }
 
     });
@@ -4743,7 +4795,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             if (!local)
             {
                 // front-load some work that fetches from remote server
-                result.subchain().then(function() {
+                result.then(function() {
 
                     var chain = this;
 
@@ -4757,28 +4809,23 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             }
             else
             {
-                result.subchain().then(function() {
+                // try to populate the map from our cached values on the node (if they exist)
+                var existingMap = self.getSystemMetadata()["attachments"];
+                if (!existingMap) {
+                    throw new Error("Local system attachments not found");
+                }
 
-                    var chain = this;
+                // attachments that come off of system() don't have "attachmentId" on their json object
+                // instead, the "attachmentId" is the key into the map.
 
-                    // try to populate the map from our cached values on the node (if they exist)
-                    var existingMap = self.system()["attachments"];
-                    if (!existingMap) {
-                        throw new Error("Local system attachments not found");
-                    }
+                // so here, in terms of normalizing things, we copy "attachmentId" into the json object
+                for (var key in existingMap)
+                {
+                    var value = result[key];
+                    value["attachmentId"] = key;
+                }
 
-                    // attachments that come off of system() don't have "attachmentId" on their json object
-                    // instead, the "attachmentId" is the key into the map.
-
-                    // so here, in terms of normalizing things, we copy "attachmentId" into the json object
-                    for (var key in existingMap)
-                    {
-                        var value = existingMap[key];
-                        value["attachmentId"] = key;
-                    }
-
-                    chain.handleResponse(existingMap);
-                });
+                //result.handleResponse(existingMap);
             }
 
             return result;
@@ -4812,7 +4859,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             var result = this.subchain(new attachmentClass(this));
 
             // preload some work onto a subchain
-            result.subchain().then(function() {
+            result.then(function() {
 
                 // params
                 var params = {};
@@ -4849,7 +4896,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
     {
         return function(attachmentId) {
 
-            return this.subchain().then(function() {
+            return this.then(function() {
                 this.chainDelete(this, this.getUri() + "/attachments/" + attachmentId).then(function() {
                     // TODO
                 });
@@ -5008,6 +5055,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return this.create(Gitana.StackMap, platform, object);
         },
 
+        project: function(platform, object)
+        {
+            return this.create(Gitana.Project, platform, object);
+        },
+
+        projectMap: function(platform, object)
+        {
+            return this.create(Gitana.ProjectMap, platform, object);
+        },
+
         repository: function(platform, object)
         {
             return this.create(Gitana.Repository, platform, object);
@@ -5096,6 +5153,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         autoClientMappingMap: function(webhost, object)
         {
             return this.create(Gitana.AutoClientMappingMap, webhost, object);
+        },
+
+        trustedDomainMapping: function(webhost, object)
+        {
+            return this.create(Gitana.TrustedDomainMapping, webhost, object);
+        },
+
+        trustedDomainMappingMap: function(webhost, object)
+        {
+            return this.create(Gitana.TrustedDomainMappingMap, webhost, object);
         },
 
         deployedApplication: function(webhost, object)
@@ -5319,7 +5386,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 if (!objectClass)
                 {
                     // check out if it says its an association via special key
-                    if (object["_is_association"])
+                    if (object.__is_association && object.__is_association())
                     {
                         objectClass = Gitana.Association;
                     }
@@ -5380,10 +5447,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
         domainPrincipal: function(domain, object)
         {
-            var principal = null;
-
             // create the principal
-            principal = this.create(Gitana.DomainPrincipal, domain, object);
+            var principal = this.create(Gitana.DomainPrincipal, domain, object);
 
             // extend the principal pre-emptively if we have an object
             if (object)
@@ -5394,14 +5459,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return principal;
         },
 
-        domainPrincipalMap: function(cluster, object)
+        domainPrincipalMap: function(domain, object)
         {
-            return this.create(Gitana.PrincipalMap, cluster, object);
+            return this.create(Gitana.PrincipalMap, domain, object);
         },
 
         extendPrincipal: function(principal)
         {
-            if (!principal.TYPE && principal.objectType() == "Gitana.DomainPrincipal")
+            if (principal.getType() && principal.objectType() == "Gitana.DomainPrincipal")
             {
                 if (principal.getType() == "USER")
                 {
@@ -5515,7 +5580,18 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         identityMap: function(directory, object)
         {
             return this.create(Gitana.IdentityMap, directory, object);
+        },
+
+        connection: function(directory, object)
+        {
+            return this.create(Gitana.Connection, directory, object);
+        },
+
+        connectionMap: function(directory, object)
+        {
+            return this.create(Gitana.ConnectionMap, directory, object);
         }
+
 
     });
 
@@ -5575,16 +5651,26 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             // copy properties
             Gitana.copyInto(this, response);
 
-            this.handleSystemProperties();
+            // handle any system properties
+            this.handleSystemProperties(response);
         },
 
         /**
          * Gets called after the response is handled and allows the object to pull out special values from
          * the "object" field so that they don't sit on the JSON object
          */
-        handleSystemProperties: function()
+        handleSystemProperties: function(response)
         {
+            // utilize the chainCopyState method in case the response is a Gitana object
+            this.chainCopyState(response);
+        },
 
+        /**
+         * Hands back a cleanup, properties-only JSON simple object.
+         */
+        json: function()
+        {
+            return JSON.parse(JSON.stringify(this));
         }
 
     });
@@ -5615,10 +5701,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             //////////////////////////////////////////////////////////////////////////////////////////////
 
             // auto-manage a list of keys
-            this.keys = (function() {
+            this.__keys = (function() {
                 var list = [];
                 return function(x) {
-                    if (x) {
+                    if (!Gitana.isUndefined(x)) {
                         if (x == 'empty') {
                             while (list.length > 0) { list.shift(); }
                         } else {
@@ -5629,7 +5715,67 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 };
             })();
 
+            this.__totalRows = (function() {
+                var _totalRows = null;
+                return function(totalRows) {
+                    if (!Gitana.isUndefined(totalRows)) { _totalRows = totalRows; }
+                    return _totalRows;
+                }
+            })();
+
+            this.__size = (function() {
+                var _size = null;
+                return function(size) {
+                    if (!Gitana.isUndefined(size)) { _size = size; }
+                    return _size;
+                }
+            })();
+
+            this.__offset = (function() {
+                var _offset = 0;
+                return function(offset) {
+                    if (!Gitana.isUndefined(offset) && offset >= 0) { _offset = offset; }
+                    return _offset;
+                }
+            })();
+
             this.base(driver, object);
+        },
+
+        /**
+         * Override to include:
+         *
+         *   __keys
+         *   __totalRows
+         *   __size
+         *   __offset
+         *
+         * @param otherObject
+         */
+        chainCopyState: function(otherObject)
+        {
+            this.base(otherObject);
+
+            // include keys
+            if (otherObject.__keys) {
+                this.__keys('empty');
+                for (var i = 0; i < otherObject.__keys().length; i++)
+                {
+                    var k = otherObject.__keys()[i];
+                    this.__keys().push(k);
+                }
+            }
+
+            if (otherObject.__totalRows) {
+                this.__totalRows(otherObject.__totalRows());
+            }
+            if (otherObject.__size) {
+                this.__size(otherObject.__size());
+            }
+            if (otherObject.__offset) {
+                this.__offset(otherObject.__offset());
+            }
+
         },
 
         clear: function()
@@ -5638,7 +5784,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             Gitana.deleteProperties(this, false);
 
             // empty keys
-            this.keys('empty');
+            this.__keys('empty');
         },
 
         /**
@@ -5651,12 +5797,24 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         handleResponse: function(response)
         {
-            this.base(response);
-
             this.clear();
 
             if (response)
             {
+                // is it a gitana map?
+                if (response.totalRows && response.size && response.offset) {
+                    this.__totalRows(response.totalRows());
+                    this.__size(response.size());
+                    this.__offset(response.offset());
+                }
+                else
+                {
+                    // otherwise assume it is a gitana result set
+                    this.__totalRows(response["total_rows"]);
+                    this.__size(response["size"]);
+                    this.__offset(response["offset"]);
+                }
+
                 if (response.rows)
                 {
                     // parse array
@@ -5667,7 +5825,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                             var o = this.buildObject(response.rows[i]);
                             this[o.getId()] = o;
 
-                            this.keys().push(o.getId());
+                            this.__keys().push(o.getId());
                         }
                     }
                     else
@@ -5675,27 +5833,51 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                         // parse object
                         for (var key in response.rows)
                         {
-                            var value = response.rows[key];
+                            if (response.rows.hasOwnProperty(key) && !Gitana.isFunction(response.rows[key]))
+                            {
+                                var value = response.rows[key];
 
-                            var o = this.buildObject(value);
-                            this[o.getId()] = o;
+                                var o = this.buildObject(value);
 
-                            this.keys().push(o.getId());
+                                // determine key
+                                var k = (o.getId && o.getId());
+                                if (!k) {
+                                    k = key;
+                                }
+                                this[k] = o;
+
+                                this.__keys().push(k);
+                            }
                         }
                     }
+                    this.__size(this.__keys().length);
                 }
                 else
                 {
                     // otherwise, assume it is key/value pairs
+                    // it also might be another Gitana Map
+
                     for (var key in response)
                     {
-                        var value = response[key];
+                        if (response.hasOwnProperty(key) && !Gitana.isFunction(response[key]))
+                        {
+                            var value = response[key];
 
-                        var o = this.buildObject(value);
-                        this[o.getId()] = o;
+                            var o = this.buildObject(value);
 
-                        this.keys().push(o.getId());
+                            // determine key
+                            var k = (o.getId && o.getId());
+                            if (!k) {
+                                k = key;
+                            }
+                            this[k] = o;
+
+                            this[k] = o;
+
+                            this.__keys().push(k);
+                        }
                     }
+                    this.__size(this.__keys().length);
                 }
             }
         },
@@ -5719,16 +5901,52 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         asArray: function()
         {
             var array = [];
-            for (var k in this)
+            for (var i = 0; i < this.__keys().length; i++)
             {
-                if (this.hasOwnProperty(k) && !Gitana.isFunction(this[k]))
-                {
-                    array.push(this[k]);
-                }
+                var k = this.__keys()[i];
+
+                array.push(this[k]);
             }
 
             return array;
         },
+
+        size: function(callback)
+        {
+            if (callback)
+            {
+                return this.then(function() {
+                    callback.call(this, this.__size());
+                });
+            }
+
+            return this.__size();
+        },
+
+        offset: function(callback)
+        {
+            if (callback)
+            {
+                return this.then(function() {
+                    callback.call(this, this.__offset());
+                });
+            }
+
+            return this.__offset();
+        },
+
+        totalRows: function(callback)
+        {
+            if (callback)
+            {
+                return this.then(function() {
+                    callback.call(this, this.__totalRows());
+                });
+            }
+
+            return this.__totalRows();
+        },
+
 
         /**
          * Iterates over the map and fires the callback function in SERIAL for each element in the map.
@@ -5749,23 +5967,27 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return this.then(function() {
 
                 // run functions
-                for (var i = 0; i < this.keys().length; i++)
+                for (var i = 0; i < this.__keys().length; i++)
                 {
                     // key and value from the map
-                    var key = this.keys()[i];
+                    var key = this.__keys()[i];
                     var value = this[key];
 
                     // a function that fires our callback
                     // wrap in a closure so that we store the callback and key
                     // note: this = the value wrapped in a chain, so we don't pass in value
-                    var f = function(callback, key, index)
+                    var f = function(callback, key, index, map)
                     {
                         return function()
                         {
                             callback.call(this, key, this, index);
+
+                            // manually copy resulting value back
+                            Gitana.deleteProperties(map[key]);
+                            Gitana.copyInto(map[key], this);
                         };
 
-                    }(callback, key, i);
+                    }(callback, key, i, this);
 
                     // create subchain mounted on this chainable and the run function
                     this.subchain(value).then(f);
@@ -5795,9 +6017,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
                 // create an array of functions that invokes the callback for each element in the array
                 var functions = [];
-                for (var i = 0; i < this.keys().length; i++)
+                for (var i = 0; i < this.__keys().length; i++)
                 {
-                    var key = this.keys()[i];
+                    var key = this.__keys()[i];
                     var value = this[key];
 
                     var f = function(callback, key, value, index) {
@@ -5842,9 +6064,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 var keysToKeep = [];
                 var keysToRemove = [];
 
-                for (var i = 0; i < this.keys().length; i++)
+                for (var i = 0; i < this.__keys().length; i++)
                 {
-                    var key = this.keys()[i];
+                    var key = this.__keys()[i];
                     var object = this[key];
 
                     var keepIt = callback.call(object);
@@ -5867,10 +6089,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 // swap keys to keep
                 // NOTE: we first clear the keys but we can't use slice(0,0) since that produces a NEW array
                 // instead, do this shift trick
-                this.keys('empty');
+                this.__keys('empty');
                 for (var i = 0; i < keysToKeep.length; i++)
                 {
-                    this.keys().push(keysToKeep[i]);
+                    this.__keys().push(keysToKeep[i]);
                 }
             });
         },
@@ -5896,7 +6118,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             return this.then(function() {
 
-                this.keys().sort(comparator);
+                this.__keys().sort(comparator);
 
             });
         },
@@ -5914,26 +6136,26 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
                 var keysToRemove = [];
 
-                if (size > this.keys().length)
+                if (size > this.__keys().length)
                 {
                     // keep everything
                     return;
                 }
 
                 // figure out which keys to remove
-                for (var i = 0; i < this.keys().length; i++)
+                for (var i = 0; i < this.__keys().length; i++)
                 {
                     if (i >= size)
                     {
-                        keysToRemove.push(this.keys()[i]);
+                        keysToRemove.push(this.__keys()[i]);
                     }
                 }
 
                 // truncate the keys
                 // NOTE: we can't use slice here since that produces a new array
-                while (this.keys().length > size)
+                while (this.__keys().length > size)
                 {
-                    this.keys().pop();
+                    this.__keys().pop();
                 }
 
                 // remove any keys to remove from map
@@ -5941,6 +6163,52 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 {
                     delete this[keysToRemove[i]];
                 }
+
+                // reset the size
+                this.__size(this.__keys().length);
+            });
+        },
+
+        /**
+         * Paginates elements in the map.
+         *
+         * @chained
+         *
+         * @param pagination
+         */
+        paginate: function(pagination)
+        {
+            return this.then(function() {
+
+                var skip = pagination.skip;
+                var limit = pagination.limit;
+
+                var keysToRemove = [];
+
+                // figure out which keys to remove
+                for (var i = 0; i < this.__keys().length; i++)
+                {
+                    if (i < skip || i >= skip + limit)
+                    {
+                        keysToRemove.push(this.__keys()[i]);
+                    }
+                }
+
+                // truncate the keys
+                // NOTE: we can't use slice here since that produces a new array
+                while (this.__keys().length > limit + skip)
+                {
+                    this.__keys().pop();
+                }
+
+                // remove any keys to remove from map
+                for (var i = 0; i < keysToRemove.length; i++)
+                {
+                    delete this[keysToRemove[i]];
+                }
+
+                // reset the limit
+                this.__size(this.__keys().length);
             });
         },
 
@@ -5949,21 +6217,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         count: function(callback)
         {
-            return this.then(function() {
-                callback.call(this, this.keys().length);
-            });
-        },
+            if (callback)
+            {
+                return this.then(function() {
+                    callback.call(this, this.__keys().length);
+                });
+            }
 
-        /**
-         * Counts the total number of rows and fires into a callback function.
-         *
-         * @param callback
-         */
-        totalRows: function(callback)
-        {
-            return this.then(function() {
-                callback.call(this, this["total_rows"]);
-            });
+            return this.__keys().length;
         },
 
         /**
@@ -5981,9 +6242,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
                 this.subchain(self).then(function() {
 
-                    if (this.keys().length > 0)
+                    if (this.__keys().length > 0)
                     {
-                        var obj = this[this.keys()[0]];
+                        var obj = this[this.__keys()[0]];
 
                         if (chain.loadFrom)
                         {
@@ -6028,34 +6289,38 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             // what we hand back
             var result = this.subchain(this.buildObject({}));
 
-            // auto-load on subchain
-            result.subchain(self).then(function()
-            {
-                var obj = this[key];
-                if (!obj)
-                {
-                    var err = new Gitana.Error();
-                    err.name = "No element with key: " + key;
-                    err.message = err.name;
+            // preload some work
+            return result.then(function() {
 
-                    this.error(err);
+                var chain = this;
 
-                    return false;
-                }
+                this.subchain(self).then(function() {
 
-                if (result.loadFrom)
-                {
-                    // for objects, like nodes or branches
-                    result.loadFrom(obj);
-                }
-                else
-                {
-                    // non-objects? (i.e. binary or attachment maps)
-                    result.handleResponse(obj);
-                }
+                    var obj = this[key];
+                    if (!obj)
+                    {
+                        var err = new Gitana.Error();
+                        err.name = "No element with key: " + key;
+                        err.message = err.name;
+
+                        this.error(err);
+
+                        return false;
+                    }
+
+                    if (result.loadFrom)
+                    {
+                        // for objects, like nodes or branches
+                        chain.loadFrom(obj);
+                    }
+                    else
+                    {
+                        // non-objects? (i.e. binary or attachment maps)
+                        chain.handleResponse(obj);
+                    }
+
+                });
             });
-
-            return result;
         }
 
     });
@@ -6079,12 +6344,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         constructor: function(driver, object)
         {
-            this.system = (function() {
-                var system = new Gitana.SystemMetadata();
-                return function() {
-                    return system;
+            this.__system = (function() {
+                var _system = new Gitana.SystemMetadata();
+                return function(system) {
+                    if (!Gitana.isUndefined(system)) { _system.updateFrom(system); }
+                    return _system;
                 }
             })();
+
+
 
 
             ///////////////////////////////////////////////////////////////////////////////////////////////
@@ -6200,6 +6468,23 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * Override to include:
+         *
+         *   __system
+         *
+         * @param otherObject
+         */
+        chainCopyState: function(otherObject)
+        {
+            this.base(otherObject);
+
+            // include __system properties?
+            if (otherObject.__system) {
+                this.__system(otherObject.__system());
+            }
+        },
+
+        /**
          * @EXTENSION_POINT
          */
         getUri: function()
@@ -6267,7 +6552,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         getSystemMetadata: function()
         {
-            return this.system();
+            return this.__system();
         },
 
         /**
@@ -6342,8 +6627,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         /**
          * @override
          */
-        handleSystemProperties: function()
+        handleSystemProperties: function(response)
         {
+            this.base(response);
+
             if (this["_system"])
             {
                 // strip out system metadata
@@ -6351,7 +6638,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 delete this["_system"];
 
                 // update system properties
-                this.system().updateFrom(json);
+                this.__system().updateFrom(json);
             }
         },
 
@@ -6446,7 +6733,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri();
             };
 
-            return this.chainReload(this.clone(), uriFunction);
+            return this.chainReload(null, uriFunction);
         },
 
         /**
@@ -6465,7 +6752,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri();
             };
 
-            return this.chainUpdate(this.clone(), uriFunction);
+            return this.chainUpdate(null, uriFunction);
         }
 
     });
@@ -7155,7 +7442,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainReload(this.clone(), uriFunction);
+            return this.chainReload(null, uriFunction);
         },
 
         /**
@@ -7172,7 +7459,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainUpdate(this.clone(), uriFunction);
+            return this.chainUpdate(null, uriFunction);
         },
 
 
@@ -7398,16 +7685,49 @@ Gitana.OAuth2Http.COOKIE = "cookie";
     Gitana.BinaryAttachmentMap = Gitana.AbstractMap.extend(
     /** @lends Gitana.BinaryAttachmentMap.prototype */
     {
-        constructor: function(persistable)
+        constructor: function(persistable, object)
         {
             this.objectType = function() { return "Gitana.BinaryAttachmentMap"; };
 
-            this.persistable = function() {
-                return persistable;
-            };
+            this.__persistable = (function() {
+                var _persistable = persistable;
+                return function(p) {
+                    if (!Gitana.isUndefined(p)) { _persistable = p; }
+                    return _persistable;
+                }
+            })();
+
+            if (!object)
+            {
+                object = this.__persistable().getSystemMetadata()["attachments"];
+            }
 
             // must come at end because loading of object requires persistable() method
-            this.base(persistable.getDriver(), persistable.system()["attachments"]);
+            this.base(this.__persistable().getDriver(), object);
+        },
+
+        /**
+         * Override to include:
+         *
+         *   __persistable
+         *
+         * @param otherObject
+         */
+        chainCopyState: function(otherObject)
+        {
+            this.base(otherObject);
+
+            if (otherObject.__persistable) {
+                this.__persistable(otherObject.__persistable());
+            }
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.BinaryAttachmentMap(this.__persistable(), this);
         },
 
         /**
@@ -7415,7 +7735,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         buildObject: function(attachment)
         {
-            return new Gitana.BinaryAttachment(this.persistable(), attachment);
+            return new Gitana.BinaryAttachment(this.__persistable(), attachment);
         }
 
     });
@@ -7566,7 +7886,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             this.objectType = function() { return "Gitana.AuditRecordMap"; };
 
-            this.datastore = datastore;
+            this.getDatastore = function() {
+                return datastore;
+            };
 
             //////////////////////////////////////////////////////////////////////////////////////////////
             //
@@ -7582,7 +7904,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         clone: function()
         {
-            return this.getFactory().auditRecordMap(this.datastore, this);
+            return this.getFactory().auditRecordMap(this.getDatastore(), this);
         },
 
         /**
@@ -7590,7 +7912,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         buildObject: function(json)
         {
-            return this.getFactory().auditRecord(this.datastore, json);
+            return this.getFactory().auditRecord(this.getDatastore(), json);
         }
 
     });
@@ -7666,7 +7988,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainReload(this.clone(), uriFunction);
+            return this.chainReload(null, uriFunction);
         },
 
         /**
@@ -7683,7 +8005,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainUpdate(this.clone(), uriFunction);
+            return this.chainUpdate(null, uriFunction);
         },
 
         /**
@@ -7744,7 +8066,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri() + "/members";
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = new Gitana.TeamMemberMap(this);
             return this.chainGet(chainable, uriFunction, params);
         },
 
@@ -7893,6 +8215,136 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 {
     var Gitana = window.Gitana;
     
+    Gitana.TeamMember = Gitana.AbstractObject.extend(
+    /** @lends Gitana.TeamMember.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractObject
+         *
+         * @class TeamMember
+         *
+         * @param {Gitana.Cluster} cluster
+         * @param [Object] object json object (if no callback required for populating)
+         */
+        constructor: function(team, object)
+        {
+            this.base(team.getDriver(), object);
+
+            this.objectType = function() { return "Gitana.TeamMember"; };
+
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // PRIVILEGED METHODS
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.getTeam = function() { return team; }
+            this.getCluster = function() { return team.getCluster(); }
+            this.getClusterId = function() { return team.getClusterId(); }
+        }
+
+        /*,
+
+        domain: function()
+        {
+            var self = this;
+
+            var result = this.subchain(new Gitana.Domain({
+                "_doc": this.domainId
+            }));
+
+            return result.then(function() {
+                // TODO: read the domain and populate
+            });
+        },
+
+        principal: function()
+        {
+            var self = this;
+
+            // domain
+            var domain = new Gitana.Domain({
+                ""
+            })
+            // temp web host
+            var webhost = new Gitana.WebHost(this.getPlatform());
+
+            // we hand back a deployed application and preload some work
+            var chainable = this.getFactory().deployedApplication(webhost);
+            return this.chainPost(chainable, uriFunction).then(function() {
+
+                // load the real web host
+                var webhostId = self["deployments"][deploymentKey]["webhost"];
+                this.subchain(this.getPlatform()).readWebHost(webhostId).then(function() {
+                    webhost.loadFrom(this);
+                });
+
+            });
+        }
+        */
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.TeamMemberMap = Gitana.AbstractMap.extend(
+    /** @lends Gitana.TeamMemberMap.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractMap
+         *
+         * @class Map of team members
+         *
+         * @param {Gitana.Team} team
+         * @param [Object] object
+         */
+        constructor: function(team, object)
+        {
+            this.objectType = function() { return "Gitana.TeamMemberMap"; };
+
+            this.getTeam = function()
+            {
+                return team;
+            };
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // CALL THROUGH TO BASE CLASS (at the end)
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.base(team.getDriver(), object);
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.TeamMemberMap(this.getTeam(), this);
+        },
+
+        /**
+         * @param json
+         */
+        buildObject: function(json)
+        {
+            return new Gitana.TeamMember(this.getTeam(), json);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
     Gitana.Activity = Gitana.AbstractObject.extend(
     /** @lends Gitana.Activity.prototype */
     {
@@ -7920,6 +8372,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getUri: function()
         {
             return this.getDataStore().getUri() + "/activities/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.Activity(this.getDataStore(), this);
         },
 
         /**
@@ -7954,7 +8414,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainReload(this.clone(), uriFunction);
+            return this.chainReload(null, uriFunction);
         },
 
         /**
@@ -7971,7 +8431,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri();
             };
 
-            return this.chainUpdate(this.clone(), uriFunction);
+            return this.chainUpdate(null, uriFunction);
         },
 
 
@@ -8397,6 +8857,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(cluster.getDriver(), object);
 
             this.objectType = function() { return "Gitana.Job"; };
+
+            this.getCluster = function()
+            {
+                return cluster;
+            };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.Job(this.getCluster(), this);
         },
 
         /**
@@ -8612,6 +9085,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(platform.getDriver(), object);
 
             this.objectType = function() { return "Gitana.LogEntry"; };
+
+            this.getPlatform = function()
+            {
+                return platform;
+            };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.LogEntry(this.getPlatform(), this);
         },
 
         /**
@@ -8797,6 +9283,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.objectType = function() { return "Gitana.CopyJob"; };
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.CopyJob(this.getCluster(), this);
+        },
+
         getImports: function()
         {
             var importObjects = [];
@@ -8870,6 +9364,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.objectType = function() { return "Gitana.TransferImportJob"; };
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.TransferExportJob(this.getCluster(), this);
+        },
+
         getImports: function()
         {
             var importObjects = [];
@@ -8940,6 +9442,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(cluster, object);
 
             this.objectType = function() { return "Gitana.TransferExportJob"; };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.TransferExportJob(this.getCluster(), this);
         },
 
         getImports: function()
@@ -9089,7 +9599,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return this.getUri() + "/";
             };
 
-            return this.chainReload(this.clone(), uriFunction);
+            return this.chainReload(null, uriFunction);
         },
 
         /** @Override **/
@@ -9670,6 +10180,135 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
 
 
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // PROJECTS
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Lists the projects.
+         *
+         * @param pagination
+         *
+         * @chained stack map
+         */
+        listProjects: function(pagination)
+        {
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var chainable = this.getFactory().projectMap(this);
+            return this.chainGet(chainable, "/projects", params);
+        },
+
+        /**
+         * Reads a project.
+         *
+         * @param projectId
+         *
+         * @chained project
+         */
+        readProject: function(projectId)
+        {
+            var chainable = this.getFactory().project(this);
+            return this.chainGet(chainable, "/projects/" + projectId);
+        },
+
+        /**
+         * Create a project
+         *
+         * @chained project
+         *
+         * @param [Object] object JSON object
+         */
+        createProject: function(object)
+        {
+            if (!object)
+            {
+                object = {};
+            }
+
+            var chainable = this.getFactory().project(this);
+            return this.chainCreate(chainable, object, "/projects");
+        },
+
+        /**
+         * Queries for projects.
+         *
+         * @chained project map
+         *
+         * @param {Object} query
+         * @param [Object] pagination pagination (optional)
+         */
+        queryProjects: function(query, pagination)
+        {
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return "/projects/query";
+            };
+
+            var chainable = this.getFactory().projectMap(this);
+            return this.chainPost(chainable, uriFunction, params, query);
+        },
+
+        /**
+         * Performs a bulk check of permissions against permissioned objects of type project.
+         *
+         * Example of checks array:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>",
+         *    "result": true
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        checkProjectPermissions: function(checks, callback)
+        {
+            var uriFunction = function()
+            {
+                return "/projects/permissions/check";
+            };
+
+            var object = {
+                "checks": checks
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["results"]);
+            });
+        },
+
+
+
+
+
+
         //////////////////////////////////////////////////////////////////////////////////////////
         //
         // LOGS
@@ -9885,8 +10524,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readApplication: function(applicationId)
         {
+            var uriFunction = function() {
+                return "/applications/" + applicationId;
+            };
+
             var chainable = this.getFactory().application(this);
-            return this.chainGet(chainable, "/applications/" + applicationId);
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -10717,7 +11360,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             };
 
             var result = this.subchain(new Gitana.BinaryAttachmentMap(pseudoTenant));
-            result.subchain().then(function() {
+            result.then(function() {
 
                 var chain = this;
 
@@ -10853,7 +11496,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 Gitana.APPS = {};
             }
 
-            helper.init.call(helper, function() {
+            helper.init.call(helper, function(err) {
+
+                if (err)
+                {
+                    callback(err);
+                    return;
+                }
+
                 Gitana.APPS[cacheKey] = helper;
                 callback.call(Chain(helper));
             });
@@ -11644,23 +12294,22 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            var chainable = new Gitana.AbstractPlatformDataStore(this.getPlatform());
-
-            return this.link(chainable).then(function() {
+            return this.then(function() {
 
                 var chain = this;
 
                 Chain(self).queryDataStores().then(function() {
 
-                    var object = this[key];
-                    Gitana.copyInto(chainable, object);
-
-                    chain.next();
+                    var datastore = this[key];
+                    datastore["_doc"] = datastore["datastoreId"];
+                    delete datastore["datastoreTypeId"];
 
                     if (callback)
                     {
-                        callback.call(this[key]);
+                        callback.call(datastore);
                     }
+
+                    chain.next();
                 });
 
                 // NOTE: we return false to tell the chain that we'll manually call next()
@@ -12145,6 +12794,168 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 {
     var Gitana = window.Gitana;
     
+    Gitana.Project = Gitana.AbstractPlatformObject.extend(
+    /** @lends Gitana.Project.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractPlatformObject
+         *
+         * @class Project
+         *
+         * @param {Gitana.Platform} platform
+         * @param [Object] object json object (if no callback required for populating)
+         */
+        constructor: function(platform, object)
+        {
+            this.base(platform, object);
+
+            this.objectType = function() { return "Gitana.Project"; };
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getType: function()
+        {
+            return Gitana.TypedIDConstants.TYPE_STACK;
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getUri: function()
+        {
+            return "/projects/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().project(this.getPlatform(), this);
+        },
+
+
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ATTACHMENTS
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Hands back an attachments map.
+         *
+         * @chained attachment map
+         *
+         * @param local
+         *
+         * @public
+         */
+        listAttachments: Gitana.Methods.listAttachments(),
+
+        /**
+         * Picks off a single attachment
+         *
+         * @chained attachment
+         *
+         * @param attachmentId
+         */
+        attachment: function(attachmentId)
+        {
+            return this.listAttachments().select(attachmentId);
+        },
+
+        /**
+         * Creates an attachment.
+         *
+         * When using this method from within the JS driver, it really only works for text-based content such
+         * as JSON or text.
+         *
+         * @chained attachment
+         *
+         * @param attachmentId (use null or false for default attachment)
+         * @param contentType
+         * @param data
+         */
+        attach: Gitana.Methods.attach(),
+
+        /**
+         * Deletes an attachment.
+         *
+         * @param attachmentId
+         */
+        unattach: Gitana.Methods.unattach(),
+
+        /**
+         * Reads the stack for the project, if it exists.
+         *
+         * @chained stack
+         */
+        readStack: function()
+        {
+            return this.subchain(this.getPlatform()).readStack(this["stackId"]);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.ProjectMap = Gitana.AbstractPlatformObjectMap.extend(
+    /** @lends Gitana.ProjectMap.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractMap
+         *
+         * @class Map of stacks
+         *
+         * @param {Gitana.Platform} platform Gitana platform instance.
+         * @param [Object] object
+         */
+        constructor: function(platform, object)
+        {
+            this.objectType = function() { return "Gitana.ProjectMap"; };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // CALL THROUGH TO BASE CLASS (at the end)
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.base(platform, object);
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().projectMap(this.getPlatform(), this);
+        },
+
+        /**
+         * @param json
+         */
+        buildObject: function(json)
+        {
+            return this.getFactory().project(this.getPlatform(), json);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
     Gitana.ClientMethods =
     {
         getKey: function()
@@ -12280,7 +13091,35 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             });
         },
 
-        
+        /**
+         * Lists the trusted domain mappings maintained for this application.
+         *
+         * @param callback the callback function
+         * @param pagination
+         *
+         * @chained this
+         */
+        listTrustedDomainMappingObjects: function(callback, pagination)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/trusteddomainmappings";
+            };
+
+            // parameters
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            return this.chainGetResponse(this, uriFunction, params).then(function(response) {
+                callback.call(this, response["rows"]);
+            });
+        },
+
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -12391,10 +13230,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 "key" : key
             };
 
-            var settings = new Gitana.Settings(this,object);
-
-            var result = this.subchain(settings);
-            result.subchain().then(function() {
+            var result = this.subchain(new Gitana.Settings(this, object));
+            return result.then(function() {
 
                 var chain = this;
                 var driver = self.getDriver();
@@ -12404,10 +13241,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 driver.gitanaPost(queryUri, {}, object, function(response) {
                     var settings = new Gitana.SettingsMap(self);
                     settings.handleResponse(response);
-                    if (settings.keys.length > 0)
+                    if (settings.__keys().length > 0)
                     {
-                        var obj = settings.map[settings.keys[0]];
-                        result.loadFrom(obj);
+                        var obj = settings[settings.__keys()[0]];
+                        chain.loadFrom(obj);
                         chain.next();
                     }
                     else
@@ -12430,8 +13267,6 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
                 return false;
             });
-
-            return result;
         },
 
         /**
@@ -12940,7 +13775,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             // we hand back a deployed application and preload some work
             var chainable = this.getFactory().deployedApplication(webhost);
-            return this.chainPost(chainable, uriFunction).then(function() {
+            return this.chainGet(chainable, uriFunction).then(function() {
 
                 // load the real web host
                 var webhostId = self["deployments"][deploymentKey]["webhost"];
@@ -12948,6 +13783,25 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                     webhost.loadFrom(this);
                 });
 
+            });
+        },
+
+        /**
+         * Retrieves information about a deployed application.
+         *
+         * @param deploymentKey
+         */
+        loadDeploymentInfo: function(deploymentKey, callback)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/deployed/" + deploymentKey + "/info";
+            };
+
+            return this.chainGetResponse(this, uriFunction, {}).then(function(response) {
+                callback(response.info);
             });
         }
 
@@ -13023,11 +13877,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             this.base(application.getPlatform(), object);
 
-            this.objectType = function() { return "Gitana.settings"; };
+            this.objectType = function() { return "Gitana.Settings"; };
 
-            this.systemKeys = ["key","scope","_system","_doc","title","description"];
-
-            this.rootKey = "settings";
 
             //////////////////////////////////////////////////////////////////////////////////////////////
             //
@@ -13055,6 +13906,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.Settings(this.getApplication(), this);
+        },
+
+        /**
          * @OVERRIDE
          */
         getType: function()
@@ -13075,7 +13934,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         getSettings: function()
         {
-            return this.get(this.rootKey);
+            return this["settings"];
         },
 
         /**
@@ -13083,9 +13942,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @param key Setting key
          */
         getSetting: function(key)
-        {            
-            //return this.get(key);
-            return this.getSettings() != null ? this.getSettings()[key] : null;
+        {
+            return (this.getSettings() ? this.getSettings()[key] : null);
         },
 
         /**
@@ -13095,23 +13953,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @param val Setting value
          */
         setSetting: function(key, val)
-        {            
-            /*
-            if (key != null && !Gitana.contains(this.systemKeys,key) )
+        {
+            if (!this.getSettings())
             {
-                this.object[key] = val;
+                this["settings"] = {};
             }
-            */
-            if (this.getSettings() == null)
-            {
-                this[this.rootKey] = {};
-                this[this.rootKey][key] = val;
-            }
-            else
-            {
-               this.getSettings()[key] = val;
-            }
-        },         
+
+            this["settings"][key] = val;
+        },
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -14522,6 +15371,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return "/warehouses/" + this.getWarehouseId() + "/interactions/" + this.getId();
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interaction(this.getWarehouse(), this);
+        },
+
+
 
 
 
@@ -14757,6 +15615,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return "/warehouses/" + this.getWarehouseId() + "/applications/" + this.getId();
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionApplication(this.getWarehouse(), this);
+        },
+
         getTimestampStart: function()
         {
             return this.get("timestamp")["start"];
@@ -14960,6 +15826,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return "/warehouses/" + this.getWarehouseId() + "/sessions/" + this.getId();
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionSession(this.getWarehouse(), this);
+        },
+
         getInteractionApplicationId: function()
         {
             return this.get("interactionApplicationId");
@@ -15105,6 +15979,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getUri: function()
         {
             return "/warehouses/" + this.getWarehouseId() + "/pages/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionPage(this.getWarehouse(), this);
         },
 
         getInteractionApplicationId: function()
@@ -15325,6 +16207,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getUri: function()
         {
             return "/warehouses/" + this.getWarehouseId() + "/nodes/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionNode(this.getWarehouse(), this);
         },
 
         getRepositoryId: function()
@@ -15555,6 +16445,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return "/warehouses/" + this.getWarehouseId() + "/users/" + this.getId();
         },
 
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionUser(this.getWarehouse(), this);
+        },
+
+
         getKey: function()
         {
             return this.get("key");
@@ -15689,6 +16588,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getUri: function()
         {
             return "/warehouses/" + this.getWarehouseId() + "/reports/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionReport(this.getWarehouse(), this);
         },
 
         getObjectTypeId: function()
@@ -15862,6 +16769,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getUri: function()
         {
             return "/warehouses/" + this.getWarehouseId() + "/reports/" + this.getReportId() + "/entries/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().interactionReportEntry(this.getWarehouse(), this);
         },
 
         getReportId: function()
@@ -16115,7 +17030,262 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             var chainable = this.getFactory().identity(this);
             return this.chainGet(chainable, uriFunction);
+        },
+
+        /**
+         * Acquires a list of all identities.
+         *
+         * @chained identity map
+         *
+         * @param [Pagination] pagination pagination (optional)
+         */
+        listIdentities: function(pagination)
+        {
+            var self = this;
+
+            // prepare params (with pagination)
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/identities";
+            };
+
+            // get to work
+            var chainable = this.getFactory().identityMap(this);
+
+            // all groups
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Queries for identities.
+         *
+         * @chained identity map
+         *
+         * @param {Object} query
+         * @param [Object] pagination pagination (optional)
+         */
+        queryIdentities: function(query, pagination)
+        {
+            var self = this;
+
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/identities/query";
+            };
+
+            var chainable = this.getFactory().identityMap(this);
+            return this.chainPost(chainable, uriFunction, params, query);
+        },
+
+        /**
+         * Performs a bulk check of permissions against permissioned objects of type identity.
+         *
+         * Example of checks array:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>",
+         *    "result": true
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        checkIdentityPermissions: function(checks, callback)
+        {
+            var self = this;
+
+            var object = {
+                "checks": checks
+            };
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/identities/permissions/check";
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["results"]);
+            });
+        },
+
+
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // CONNECTIONS
+        //
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Reads a connection.
+         *
+         * @chained connection
+         *
+         * @param {String} connectionId the connection id
+         */
+        readConnection: function(connectionId)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/connections/" + connectionId;
+            };
+
+            var chainable = this.getFactory().connection(this);
+            return this.chainGet(chainable, uriFunction);
+        },
+
+        /**
+         * Creates a connection.
+         *
+         * @chained connection
+         *
+         * @param [Object] object JSON object
+         */
+        createConnection: function(object)
+        {
+            var self = this;
+
+            if (!object)
+            {
+                object = {};
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/connections";
+            };
+
+            var chainable = this.getFactory().connection(this, object);
+
+            return this.chainCreate(chainable, object, uriFunction);
+        },
+
+        /**
+         * Acquires a list of all connections.
+         *
+         * @chained identity map
+         *
+         * @param [Pagination] pagination pagination (optional)
+         */
+        listConnections: function(pagination)
+        {
+            var self = this;
+
+            // prepare params (with pagination)
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/connections";
+            };
+
+            // get to work
+            var chainable = this.getFactory().connectionMap(this);
+
+            // all groups
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Queries for connections.
+         *
+         * @chained identity map
+         *
+         * @param {Object} query
+         * @param [Object] pagination pagination (optional)
+         */
+        queryConnections: function(query, pagination)
+        {
+            var self = this;
+
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/connections/query";
+            };
+
+            var chainable = this.getFactory().connectionMap(this);
+            return this.chainPost(chainable, uriFunction, params, query);
+        },
+
+        /**
+         * Performs a bulk check of permissions against permissioned objects of type connection.
+         *
+         * Example of checks array:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>",
+         *    "result": true
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        checkConnectionPermissions: function(checks, callback)
+        {
+            var self = this;
+
+            var object = {
+                "checks": checks
+            };
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/connections/permissions/check";
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["results"]);
+            });
         }
+
+
 
     });
 
@@ -16266,7 +17436,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/users";
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this);
+            var domain = new Gitana.Domain(this.getPlatform());
+
+            var chainable = this.getFactory().domainPrincipalMap(domain);
 
             // prepare params (with pagination)
             var params = {};
@@ -16434,6 +17606,138 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 {
     var Gitana = window.Gitana;
     
+    Gitana.Connection = Gitana.AbstractPlatformObject.extend(
+    /** @lends Gitana.Connection.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractPlatformObject
+         *
+         * @class Connection
+         *
+         * @param {Gitana.Directory} directory
+         * @param [Object] object json object (if no callback required for populating)
+         */
+        constructor: function(directory, object)
+        {
+            this.base(directory.getPlatform(), object);
+
+            this.objectType = function() { return "Gitana.Connection"; };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // PRIVILEGED METHODS
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.getDirectory = function()
+            {
+                return directory;
+            };
+
+            this.getDirectoryId = function()
+            {
+                return directory.getId();
+            };
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getType: function()
+        {
+            return Gitana.TypedIDConstants.TYPE_CONNECTION;
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getUri: function()
+        {
+            return "/directories/" + this.getDirectoryId() + "/connections/" + this.getId();
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().connection(this.getDirectory(), this);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.ConnectionMap = Gitana.AbstractPlatformObjectMap.extend(
+    /** @lends Gitana.ConnectionMap.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractPlatformObjectMap
+         *
+         * @class Map of connection objects
+         *
+         * @param {Gitana.Registrar} directory Gitana directory object
+         * @param {Object} object
+         */
+        constructor: function(directory, object)
+        {
+            this.objectType = function() { return "Gitana.ConnectionMap"; };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // PRIVILEGED METHODS
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.getDirectory = function()
+            {
+                return directory;
+            };
+
+            this.getDirectoryId = function()
+            {
+                return directory.getId();
+            };
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // CALL THROUGH TO BASE CLASS (at the end)
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.base(directory.getPlatform(), object);
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().connectionMap(this.getDirectory(), this);
+        },
+
+        /**
+         * @param json
+         */
+        buildObject: function(json)
+        {
+            return this.getFactory().connection(this.getDirectory(), json);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
     Gitana.Domain = Gitana.AbstractPlatformDataStore.extend(
     /** @lends Gitana.Domain.prototype */
     {
@@ -16508,7 +17812,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             };
 
             // get to work
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = this.getFactory().domainPrincipalMap(this);
 
             // all groups
             return this.chainGet(chainable, uriFunction, params);
@@ -16598,7 +17902,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/principals/query";
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = this.getFactory().domainPrincipalMap(this);
             return this.chainPost(chainable, uriFunction, params, query);
         },
 
@@ -16819,7 +18123,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/principals/" + groupId + "/members";
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = this.getFactory().domainPrincipalMap(this);
             return this.chainGet(chainable, uriFunction, params);
         },
 
@@ -17069,7 +18373,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return uri;
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = this.getFactory().domainPrincipalMap(this.getDomain());
             return this.chainGet(chainable, uriFunction, params);
         },
 
@@ -17131,25 +18435,25 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 {
     var Gitana = window.Gitana;
     
-    Gitana.PrincipalMap = Gitana.AbstractMap.extend(
+    Gitana.PrincipalMap = Gitana.AbstractPlatformObjectMap.extend(
     /** @lends Gitana.PrincipalMap.prototype */
     {
         /**
          * @constructs
-         * @augments Gitana.AbstractMap
+         * @augments Gitana.AbstractPlatformObjectMap
          *
          * @class Map of principal objects
          *
-         * @param {Gitana.Cluster} cluster Gitana cluster instance.
+         * @param {Gitana.Domain} domain Gitana domain instance.
          * @param [Object] object
          */
-        constructor: function(cluster, object)
+        constructor: function(domain, object)
         {
             this.objectType = function() { return "Gitana.PrincipalMap"; };
 
-            this.getCluster = function()
+            this.getDomain = function()
             {
-                return cluster;
+                return domain;
             };
 
             //////////////////////////////////////////////////////////////////////////////////////////////
@@ -17158,7 +18462,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             //
             //////////////////////////////////////////////////////////////////////////////////////////////
 
-            this.base(cluster.getDriver(), object);
+            this.base(domain.getPlatform(), object);
         },
 
         /**
@@ -17166,7 +18470,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         clone: function()
         {
-            return this.getFactory().domainPrincipalMap(this.getCluster(), this);
+            return this.getFactory().domainPrincipalMap(this.getDomain(), this);
         },
 
         /**
@@ -17174,17 +18478,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         buildObject: function(json)
         {
-            var domainId = json["domainId"];
-
-            // TODO - what do we do it the principals in the group are in domains that are NOT part of this platform?
-            var platform = this.getDriver().currentPlatform;
-
-            // TODO - this is a pretty big hack at the moment
-            var domain = this.getFactory().domain(platform, {
-                "_doc": domainId
-            });
-
-            return this.getFactory().domainPrincipal(domain, json);
+            return this.getFactory().domainPrincipal(this.getDomain(), json);
         }
 
     });
@@ -17254,7 +18548,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/members";
             };
 
-            var chainable = this.getFactory().domainPrincipalMap(this.getCluster());
+            var chainable = this.getFactory().domainPrincipalMap(this.getDomain());
             return this.chainGet(chainable, uriFunction, params);
         },
 
@@ -18204,7 +19498,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         clone: function()
         {
-            return this.getFactory().plan(this.getRegistrar(), this);
+            return this.getFactory().meter(this.getRegistrar(), this);
         }
 
     });
@@ -19249,7 +20543,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.__qname = (function() {
                 var _qname = null;
                 return function(qname) {
-                    if (qname) { _qname = qname; }
+                    if (!Gitana.isUndefined(qname)) { _qname = qname; }
                     return _qname;
                 }
             })();
@@ -19257,7 +20551,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.__type = (function() {
                 var _type = null;
                 return function(type) {
-                    if (type) { _type = type; }
+                    if (!Gitana.isUndefined(type)) { _type = type; }
                     return _type;
                 }
             })();
@@ -19265,7 +20559,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.__features = (function() {
                 var _features = {};
                 return function(features) {
-                    if (features) { _features = features; }
+                    if (!Gitana.isUndefined(features)) { _features = features; }
                     return _features;
                 }
             })();
@@ -19273,7 +20567,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.__stats = (function() {
                 var _stats = {};
                 return function(stats) {
-                    if (stats) { _stats = stats; }
+                    if (!Gitana.isUndefined(stats)) { _stats = stats; }
                     return _stats;
                 }
             })();
@@ -19353,9 +20647,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         /**
          * @override
          */
-        handleSystemProperties: function()
+        handleSystemProperties: function(response)
         {
-            this.base();
+            this.base(response);
 
             // strip out "_qname"
             if (this["_qname"])
@@ -19382,7 +20676,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             }
 
             // strip out "stats"
-            if (this["stats"])
+            if (this["stats"] && typeof(this["stats"]) == "object")
             {
                 var stats = this["stats"];
                 delete this["stats"];
@@ -19399,6 +20693,38 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * Override to include:
+         *
+         *   __qname
+         *   __type
+         *   __features
+         *   __stats
+         *   __is_association
+         *
+         * @param otherObject
+         */
+        chainCopyState: function(otherObject)
+        {
+            this.base(otherObject);
+
+            if (otherObject.__qname) {
+                this.__qname(otherObject.__qname());
+            }
+            if (otherObject.__type) {
+                this.__type(otherObject.__type());
+            }
+            if (otherObject.__features) {
+                this.__features(otherObject.__features());
+            }
+            if (otherObject.__stats) {
+                this.__stats(otherObject.__stats());
+            }
+            if (otherObject.__is_association) {
+                this.__is_association(otherObject.__is_association());
+            }
+        },
+
+        /**
          * Hands back the stats.
          */
         stats: function()
@@ -19406,23 +20732,45 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return this.__stats();
         },
 
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // FEATURES
+        //
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
         /**
          * Hands back a list of the feature ids that this node has.
          *
          * @public
          *
+         * @param [Function] callback optional callback
+         *
          * @returns {Array} An array of strings that are the ids of the features.
          */
-        getFeatureIds: function()
+        getFeatureIds: function(callback)
         {
-            var featureIds = [];
+            var self = this;
 
-            for (var featureId in this._features())
+            var f = function()
             {
-                featureIds[featureIds.length] = featureId;
+                var featureIds = [];
+                for (var featureId in this.__features()) {
+                    featureIds[featureIds.length] = featureId;
+                }
+
+                return featureIds;
+            };
+
+            if (callback)
+            {
+
+                return this.then(function() {
+                    callback.call(this, f.call(self));
+                });
             }
 
-            return featureIds;
+            return f.call(self);
         },
 
         /**
@@ -19431,12 +20779,22 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @public
          *
          * @param {String} featureId the id of the feature
+         * @param [Function] callback optional callback
          *
          * @returns {Object} the JSON object configuration for the feature
          */
-        getFeature: function(featureId)
+        getFeature: function(featureId, callback)
         {
-            return this._features()[featureId];
+            var self = this;
+
+            if (callback)
+            {
+                return this.then(function() {
+                    callback.call(this, self.__features()[featureId]);
+                });
+            }
+
+            return self.__features()[featureId];
         },
 
         /**
@@ -19448,10 +20806,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         removeFeature: function(featureId)
         {
-            if (this._features()[featureId])
+            var self = this;
+
+            var uriFunction = function()
             {
-                delete this._features()[featureId]
-            }
+                return self.getUri() + "/features/" + featureId;
+            };
+
+            return this.chainDelete(this, uriFunction).reload().then(function() {
+                self.loadFrom(this);
+            });
         },
 
         /**
@@ -19459,11 +20823,24 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @public
          * @param {String} featureId the id of the feature
-         * @param {Object} featureConfig the JSON object configuration for the feature
+         * @param [Object] featureConfig the JSON object configuration for the feature
          */
         addFeature: function(featureId, featureConfig)
         {
-            this._features()[featureId] = featureConfig;
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/features/" + featureId;
+            };
+
+            if (!featureConfig) {
+                featureConfig = {};
+            }
+
+            return this.chainPostEmpty(this, uriFunction, {}, featureConfig).reload().then(function() {
+                self.loadFrom(this);
+            });
         },
 
         /**
@@ -19472,36 +20849,23 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @public
          *
          * @param {String} featureId the id of the feature
+         * @param [Function] callback optional callback to receive result (for chaining)
          *
          * @returns {Boolean} whether this node has this feature
          */
-        hasFeature: function(featureId)
+        hasFeature: function(featureId, callback)
         {
-            return !Gitana.isEmpty(this._features()[featureId]);
-        },
+            if (callback)
+            {
+                return this.then(function() {
 
-        /**
-         * Gets the QName for this node.
-         *
-         * @public
-         *
-         * @returns {String} the qname of this node.
-         */
-        getQName: function()
-        {
-            return this._qname();
-        },
+                    var hasFeature = !Gitana.isEmpty(this.__features()[featureId]);
 
-        /**
-         * Gets the type QName for this node.
-         *
-         * @public
-         *
-         * @returns {String} the type qname of this node.
-         */
-        getTypeQName: function()
-        {
-            return this._type();
+                    callback.call(this, hasFeature);
+                });
+            }
+
+            return !Gitana.isEmpty(this.__features()[featureId]);
         },
 
         /**
@@ -19513,7 +20877,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         isAssociation: function()
         {
-            return this._is_association();
+            return this.__is_association();
         },
 
         /**
@@ -19545,9 +20909,159 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/touch";
             };
 
-            // NOTE: pass control back to the branch
-            return this.chainPost(this.clone(), uriFunction);
-        }
+            return this.chainPost(null, uriFunction);
+        },
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // TYPE
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Gets the type QName for this node.
+         *
+         * @public
+         *
+         * @returns {String} the type qname of this node.
+         */
+        getTypeQName: function()
+        {
+            return this.__type();
+        },
+
+        /**
+         * Changes the type QName for this node.
+         *
+         * @public
+         * @param {String} typeQName the qname of the type to change to
+         */
+        changeTypeQName: function(typeQName)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/change_type?type=" + typeQName;
+            };
+
+            return this.chainPostEmpty(this, uriFunction).reload().then(function() {
+                self.loadFrom(this);
+            });
+        },
+
+
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // QNAME
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Gets the QName for this node.
+         *
+         * @public
+         *
+         * @returns {String} the qname of this node.
+         */
+        getQName: function()
+        {
+            return this.__qname();
+        },
+
+        /**
+         * Sets the QName of this node.
+         *
+         * @public
+         * @param {String} typeQName the qname of the type to change to
+         */
+        changeQName: function(qname)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/change_qname?qname=" + qname;
+            };
+
+            return this.chainPostEmpty(this, uriFunction).reload().then(function() {
+                self.loadFrom(this);
+            });
+        },
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ATTACHMENTS
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Lists the attachments of this node.
+         *
+         * If local is set to true, the attachments are drawn from precached values on the node.
+         *
+         * @chained attachment map
+         *
+         * @param local
+         *
+         * @public
+         */
+        listAttachments: Gitana.Methods.listAttachments(Gitana.NodeAttachmentMap),
+
+        /**
+         * Picks off a single attachment
+         *
+         * @chained attachment
+         *
+         * @param attachmentId (null for default)
+         */
+        attachment: function(attachmentId)
+        {
+            return this.listAttachments().select(attachmentId);
+        },
+
+        /**
+         * Non-chained method for getting a download URI for this node's attachment.
+         */
+        attachmentDownloadUri: function(attachmentId)
+        {
+            return this.getDriver().baseURL + this.getUri() + "/attachments/" + attachmentId;
+        },
+
+        /**
+         * Creates an attachment.
+         *
+         * When using this method from within the JS driver, it really only works for text-based content such
+         * as JSON or text.
+         *
+         * @chained attachment
+         *
+         * @param attachmentId (use null or false for default attachment)
+         * @param contentType
+         * @param data
+         * @param filename
+         */
+        attach: function(attachmentId, contentType, data, filename)
+        {
+            var paramsFunction = function(params) {
+                if (filename) { params["filename"] = filename; }
+            };
+
+            var delegate = Gitana.Methods.attach.call(this, Gitana.NodeAttachment, paramsFunction);
+            return delegate.call(this, attachmentId, contentType, data);
+        },
+
+        /**
+         * Deletes an attachment.
+         *
+         * @param attachmentId
+         */
+        unattach: Gitana.Methods.unattach()
+
     });
 
 })(window);
@@ -19604,11 +21118,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @param repository
          * @param map
          */
-        constructor: function(persistable)
+        constructor: function(persistable, object)
         {
-            this.base(persistable);
+            this.base(persistable, object);
 
             this.objectType = function() { return "Gitana.NodeAttachmentMap"; };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.NodeAttachmentMap(this.__persistable(), this);
         },
 
         /**
@@ -19616,7 +21138,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         buildObject: function(attachment)
         {
-            return new Gitana.NodeAttachment(this.persistable(), attachment);
+            return new Gitana.NodeAttachment(this.__persistable(), attachment);
         }
 
 
@@ -19753,13 +21275,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            var chainable = this.getFactory().node(this.getBranch());
-            return this.subchain(chainable).then(function() {
+            var result = this.subchain(this.getFactory().node(this.getBranch()));
+            return result.then(function() {
 
                 var chain = this;
 
                 this.subchain(self.getBranch()).readNode(self.getSourceNodeId()).then(function() {
-                    chainable.loadFrom(this);
+                    chain.loadFrom(this);
                 });
             });
         },
@@ -19775,13 +21297,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            var chainable = this.getFactory().node(this.getBranch());
-            return this.subchain(chainable).then(function() {
+            var result = this.subchain(this.getFactory().node(this.getBranch()));
+            return result.then(function() {
 
                 var chain = this;
 
                 this.subchain(self.getBranch()).readNode(self.getTargetNodeId()).then(function() {
-                    chainable.loadFrom(this);
+                    chain.loadFrom(this);
                 });
             });
         },
@@ -19811,30 +21333,35 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             }
 
             var result = this.subchain(this.getFactory().node(this.getBranch()));
-            result.subchain(self).then(function() {
+            result.then(function() {
 
-                if (nodeId == this.getSourceNodeId())
-                {
-                    this.readTargetNode().then(function() {
-                        result.loadFrom(this);
-                    });
-                }
-                else if (nodeId == this.getTargetNodeId())
-                {
-                    this.readSourceNode().then(function() {
-                        result.loadFrom(this);
-                    });
-                }
-                else
-                {
-                    var err = new Gitana.Error();
-                    err.name = "No node on association";
-                    err.message = "The node: " + nodeId + " was not found on this association";
+                var chain = this;
 
-                    this.error(err);
+                this.subchain(self).then(function() {
 
-                    return false;
-                }
+                    if (nodeId == this.getSourceNodeId())
+                    {
+                        this.readTargetNode().then(function() {
+                            chain.loadFrom(this);
+                        });
+                    }
+                    else if (nodeId == this.getTargetNodeId())
+                    {
+                        this.readSourceNode().then(function() {
+                            chain.loadFrom(this);
+                        });
+                    }
+                    else
+                    {
+                        var err = new Gitana.Error();
+                        err.name = "No node on association";
+                        err.message = "The node: " + nodeId + " was not found on this association";
+
+                        this.error(err);
+
+                        return false;
+                    }
+                });
             });
 
             return result;
@@ -20070,14 +21597,20 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @public
          *
          * @param {String} nodeId the node id
+         * @param [String] offset path
          */
-        readNode: function(nodeId)
+        readNode: function(nodeId, path)
         {
             var self = this;
 
             var uriFunction = function()
             {
-                return self.getUri() + "/nodes/" + nodeId;
+                var uri = self.getUri() + "/nodes/" + nodeId;
+                if (path) {
+                    uri += "?path=" + path;
+                }
+
+                return uri;
             };
 
             var chainable = this.getFactory().node(this);
@@ -20104,8 +21637,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @public
          *
          * @param [Object] object JSON object
+         * @param [String] folderPath an offset folder path where the node should be created (i.e. /root/pages/) where root is the root node to start from
          */
-        createNode: function(object)
+        createNode: function(object, folderPath)
         {
             var self = this;
 
@@ -20114,8 +21648,34 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/nodes";
             };
 
+            var params = null;
+            if (folderPath && folderPath.length > 0)
+            {
+                if (Gitana.startsWith(folderPath, "/")) {
+                    folderPath = folderPath.substring(1);
+                }
+
+                var parentNodeId = null;
+                var parentNodePath = null;
+                var associationType = "a:child";
+
+                if (folderPath == "/") {
+                    parentNodeId = "root";
+                    parentNodePath = "/";
+                } else {
+                    var i = folderPath.indexOf("/");
+                    parentNodeId = folderPath.substring(0, i);
+                    parentNodePath = folderPath.substring(i + 1);
+                }
+
+                params = {};
+                params.parentNodeId = parentNodeId;
+                params.parentNodePath = parentNodePath;
+                params.associationType = associationType;
+            }
+
             var chainable = this.getFactory().node(this);
-            return this.chainCreate(chainable, object, uriFunction);
+            return this.chainCreate(chainable, object, uriFunction, params);
         },
 
         /**
@@ -20517,17 +22077,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 object = {};
             }
 
-            if (!object["_system"])
+            if (!object["_features"])
             {
-                object["_system"] = {};
+                object["_features"] = {};
             }
 
-            if (!object["_system"]["_features"])
-            {
-                object["_system"]["_features"] = {};
-            }
-
-            object["_system"]["_features"]["f:container"] = {
+            object["_features"]["f:container"] = {
                 "active": "true"
             };
 
@@ -20580,6 +22135,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             var chainable = this.getFactory().nodeMap(this);
             return this.chainPost(chainable, uriFunction, params, config);
+        },
+
+        /**
+         * Another way to access the find() method that is more consistent with the API
+         * that would be expected.
+         *
+         * @param config
+         * @param pagination
+         * @return {*}
+         */
+        findNodes: function(config, pagination)
+        {
+            return this.find(config, pagination);
         },
 
 
@@ -20647,6 +22215,44 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             var chainable = this.getFactory().nodeMap(this);
             return this.chainPost(chainable, uriFunction, params, query);
+        },
+
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // UTILITIES
+        //
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Loads all of the definitions, forms and key mappings on this branch.
+         *
+         * @param filter
+         * @param callback
+         */
+        loadForms: function(filter, callback)
+        {
+            var self = this;
+
+            return this.then(function() {
+
+                var chain = this;
+
+                // call
+                var uri = self.getUri() + "/forms";
+                if (filter) {
+                    uri += "?filter=" + filter;
+                }
+                self.getDriver().gitanaGet(uri, null, function(response) {
+
+                    callback.call(chain, response);
+
+                    chain.next();
+                });
+
+                // NOTE: we return false to tell the chain that we'll manually call next()
+                return false;
+            });
         }
 
     });
@@ -21098,8 +22704,6 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         traverse: function(config)
         {
-            var _this = this;
-
             // build the payload
             var payload = {
                 "traverse": config
@@ -21518,67 +23122,6 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
 
-        //////////////////////////////////////////////////////////////////////////////////////////
-        //
-        // ATTACHMENTS
-        //
-        //////////////////////////////////////////////////////////////////////////////////////////
-
-        /**
-         * Lists the attachments of this node.
-         *
-         * If local is set to true, the attachments are drawn from precached values on the node.
-         *
-         * @chained attachment map
-         *
-         * @param local
-         *
-         * @public
-         */
-        listAttachments: Gitana.Methods.listAttachments(Gitana.NodeAttachmentMap),
-
-        /**
-         * Picks off a single attachment
-         *
-         * @chained attachment
-         *
-         * @param attachmentId (null for default)
-         */
-        attachment: function(attachmentId)
-        {
-            return this.listAttachments().select(attachmentId);
-        },
-
-        /**
-         * Creates an attachment.
-         *
-         * When using this method from within the JS driver, it really only works for text-based content such
-         * as JSON or text.
-         *
-         * @chained attachment
-         *
-         * @param attachmentId (use null or false for default attachment)
-         * @param contentType
-         * @param data
-         * @param filename
-         */
-        attach: function(attachmentId, contentType, data, filename)
-        {
-            var paramsFunction = function(params) {
-                if (filename) { params["filename"] = filename; }
-            };
-
-            var delegate = Gitana.Methods.attach.call(this, Gitana.NodeAttachment, paramsFunction);
-            return delegate.call(this, attachmentId, contentType, data);
-        },
-
-        /**
-         * Deletes an attachment.
-         *
-         * @param attachmentId
-         */
-        unattach: Gitana.Methods.unattach(),
-
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -21600,7 +23143,37 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createChild: function(object)
         {
-            return this.subchain(this.getBranch()).createNode(object).childOf(this);
+            var self = this;
+
+            // we can't assume we know the branch get since we're chaining
+            // so create a temporary branch that we'll load later
+
+            var branch = new Gitana.Branch(this.getRepository());
+
+            // we hand back a node and preload some work
+            var chainable = this.getFactory().node(branch);
+            return this.subchain(chainable).then(function() {
+
+                var chain = this;
+
+                // we now plug in branch and create child node
+                this.subchain(self).then(function() {
+
+                    // load branch
+                    branch.loadFrom(this.getBranch());
+
+                    // create child node
+                    this.subchain(branch).createNode(object).then(function() {
+
+                        chain.loadFrom(this);
+
+                        this.childOf(self);
+                    });
+
+                });
+
+            });
+
         },
 
         /**
@@ -21823,12 +23396,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 {
     var Gitana = window.Gitana;
     
-    Gitana.NodeMap = Gitana.AbstractMap.extend(
+    Gitana.NodeMap = Gitana.AbstractPlatformObjectMap.extend(
     /** @lends Gitana.NodeMap.prototype */
     {
         /**
          * @constructs
-         * @augments Gitana.AbstractMap
+         * @augments Gitana.AbstractPlatformObjectMap
          *
          * @class Map of node objects
          *
@@ -22007,9 +23580,9 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         handleResponse: function(response)
         {
-            this.base(response);
-
             this.clear();
+
+            this.handleSystemProperties(response);
 
             // copy nodes and associations map values
             Gitana.copyInto(this._nodes, response.nodes);
@@ -22075,17 +23648,17 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             // what we're handing back
             var result = this.subchain(this.getFactory().nodeMap(this.getBranch()));
 
-            // subchain at front to load
-            result.subchain().then(function() {
+            // preload some work and hand back
+            return result.then(function() {
+
+                var chain = this;
 
                 var response = {
                     "rows": self._nodes
                 };
 
-                result.handleResponse(response);
+                chain.handleResponse(response);
             });
-
-            return result;
         },
 
         /**
@@ -22099,22 +23672,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            // node
+            // hand back a node but preload with work
             var result = this.subchain(this.getFactory().node(this.getBranch()));
+            return result.then(function() {
 
-            result.subchain(self).then(function() {
-                this.nodes().then(function() {
-                    var node = this.get(id);
-                    if (node)
-                    {
-                        result.handleResponse(node);
-                    }
-                    else
-                    {
-                        // NOTE: return here so that we don't continue processing beyond this link
-                        return self.missingNodeError(id);
-                    }
-                });
+                var nodeObject = self._nodes[id];
+                if (!nodeObject) {
+                    return self.missingNodeError(id);
+                }
+
+                this.handleResponse(nodeObject);
             });
 
             return result;
@@ -22132,17 +23699,17 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             // what we're handing back
             var result = this.subchain(this.getFactory().nodeMap(this.getBranch()));
 
-            // subchain at front to load
-            result.subchain().then(function() {
+            // preload some work and hand back
+            return result.then(function() {
+
+                var chain = this;
 
                 var response = {
                     "rows": self._associations
                 };
 
-                result.handleResponse(response);
+                chain.handleResponse(response);
             });
-
-            return result;
         },
 
         /**
@@ -22156,21 +23723,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
+            // hand back a node but preload with work
             var result = this.subchain(this.getFactory().association(this.getBranch()));
+            return result.then(function() {
 
-            result.subchain().then(function() {
-                this.associations().then(function() {
-                    var node = this.get(id);
-                    if (node)
-                    {
-                        result.handleResponse(node);
-                    }
-                    else
-                    {
-                        // NOTE: return here so that we don't continue processing beyond this link
-                        return self.missingNodeError(id);
-                    }
-                });
+                var associationObject = self._associations[id];
+                if (!associationObject) {
+                    return self.missingNodeError(id);
+                }
+
+                this.handleResponse(associationObject);
             });
 
             return result;
@@ -22200,6 +23762,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(branch, object);
 
             this.objectType = function() { return "Gitana.Definition"; };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().definition(this.getBranch(), this);
         },
 
         /**
@@ -22357,6 +23927,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().form(this.getBranch(), this);
+        },
+
+        /**
          * Gets the engine id for this form.
          *
          * @public
@@ -22409,6 +23987,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.HasFormAssociation(this.getBranch(), this);
+        },
+
+        /**
          * Gets the form key for the association.
          *
          * @public
@@ -22457,6 +24043,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(branch, object);
 
             this.objectType = function() { return "Gitana.HasTranslationAssociation"; };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.HasTranslationAssociation(this.getBranch(), this);
         },
 
         /**
@@ -22525,6 +24119,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             this.base(branch, object);
 
             this.objectType = function() { return "Gitana.Person"; };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return new Gitana.Person(this.getBranch(), this);
         },
 
         getPrincipalName: function()
@@ -22961,6 +24563,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().archive(this.getVault(), this);
+        },
+
+        /**
          * Gets the URI used to download the archive
          */
         getDownloadUri: function()
@@ -23219,8 +24829,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readAutoClientMapping: function(autoClientMappingId)
         {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/autoclientmappings/" + autoClientMappingId
+            };
+
             var chainable = this.getFactory().autoClientMapping(this);
-            return this.chainGet(chainable, this.getUri() + "/autoclientmappings/" + autoClientMappingId);
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -23295,6 +24912,154 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
 
 
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // TRUSTED DOMAIN MAPPINGS
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Create trusted domain mapping
+         *
+         * @chained trusted domain mapping
+         *
+         * @param host
+         * @param scope
+         * @param platformId
+         * @param [Object] object JSON object
+         */
+        createTrustedDomainMapping: function(host, scope, platformId, object)
+        {
+            if (!object)
+            {
+                object = {};
+            }
+
+            if (!Gitana.isString(platformId))
+            {
+                platformId = platformId.getId();
+            }
+
+            object["host"] = host;
+            object["scope"] = scope;
+            object["platformId"] = platformId;
+
+            var chainable = this.getFactory().trustedDomainMapping(this);
+            return this.chainCreate(chainable, object, this.getUri() + "/trusteddomainmappings");
+        },
+
+        /**
+         * Lists the trusted domain mappings.
+         *
+         * @param pagination
+         *
+         * @chained trusted domain mappings map
+         */
+        listTrustedDomainMappings: function(pagination)
+        {
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var chainable = this.getFactory().trustedDomainMappingMap(this);
+            return this.chainGet(chainable, this.getUri() + "/trusteddomainmappings", params);
+        },
+
+        /**
+         * Reads a trusted domain mapping.
+         *
+         * @param trustedDomainMappingId
+         *
+         * @chained trusted domain mapping
+         */
+        readTrustedDomainMapping: function(trustedDomainMappingId)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/trusteddomainmappings/" + trustedDomainMappingId
+            };
+
+            var chainable = this.getFactory().trustedDomainMapping(this);
+            return this.chainGet(chainable, uriFunction);
+        },
+
+        /**
+         * Queries for trusted domain mappings.
+         *
+         * @chained trusted domain mappings map
+         *
+         * @param {Object} query
+         * @param [Object] pagination pagination (optional)
+         */
+        queryTrustedDomainMappings: function(query, pagination)
+        {
+            var self = this;
+
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/trusteddomainmappings/query";
+            };
+
+            var chainable = this.getFactory().trustedDomainMappingMap(this);
+            return this.chainPost(chainable, uriFunction, params, query);
+        },
+
+        /**
+         * Performs a bulk check of permissions against permissioned objects of type stack.
+         *
+         * Example of checks array:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissionedId": "<permissionedId>",
+         *    "principalId": "<principalId>",
+         *    "permissionId": "<permissionId>",
+         *    "result": true
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        checkTrustedDomainMappingsPermissions: function(checks, callback)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/trusteddomainmappings/permissions/check";
+            };
+
+            var object = {
+                "checks": checks
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["results"]);
+            });
+        },
+
+
+
         //////////////////////////////////////////////////////////////////////////////////////////
         //
         // DEPLOYED APPLICATIONS
@@ -23306,7 +25071,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param pagination
          *
-         * @chained auto client mappings map
+         * @chained deployed application mappings map
          */
         listDeployedApplications: function(pagination)
         {
@@ -23542,6 +25307,146 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getAutoManage: function()
         {
             return this.get("automanage");
+        }
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.TrustedDomainMappingMap = Gitana.AbstractPlatformObjectMap.extend(
+    /** @lends Gitana.TrustedDomainMappingMap.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractPlatformObjectMap
+         *
+         * @class TrustedDomainMappingMap
+         *
+         * @param {Gitana.WebHost} webhost Gitana Web Host instance.
+         * @param [Object] object
+         */
+        constructor: function(webhost, object)
+        {
+            this.objectType = function() { return "Gitana.TrustedDomainMappingMap"; };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // PRIVILEGED METHODS
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            /**
+             * Gets the Gitana Web Host object.
+             *
+             * @inner
+             *
+             * @returns {Gitana.WebHost} The Gitana Web Host object
+             */
+            this.getWebHost = function() { return webhost; };
+
+            /**
+             * Gets the Gitana Web Host id.
+             *
+             * @inner
+             *
+             * @returns {String} The Gitana Web Host id
+             */
+            this.getWebHostId = function() { return webhost.getId(); };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // CALL THROUGH TO BASE CLASS (at the end)
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.base(webhost.getPlatform(), object);
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().trustedDomainMappingMap(this.getWebHost(), this);
+        },
+
+        /**
+         * @param json
+         */
+        buildObject: function(json)
+        {
+            return this.getFactory().trustedDomainMapping(this.getWebHost(), json);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.TrustedDomainMapping = Gitana.AbstractPlatformObject.extend(
+    /** @lends Gitana.TrustedDomainMapping.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractPlatformObject
+         *
+         * @class TrustedDomainMapping
+         *
+         * @param {Gitana.WebHost} webhost
+         * @param [Object] object json object (if no callback required for populating)
+         */
+        constructor: function(webhost, object)
+        {
+            this.base(webhost.getPlatform(), object);
+
+            this.objectType = function() { return "Gitana.TrustedDomainMapping"; };
+
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // PRIVILEGED METHODS
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            /**
+             * Gets the Gitana Web Host object.
+             *
+             * @inner
+             *
+             * @returns {Gitana.WebHost} The Gitana Web Host object
+             */
+            this.getWebHost = function() { return webhost; };
+
+            /**
+             * Gets the Gitana Web Host id.
+             *
+             * @inner
+             *
+             * @returns {String} The Gitana Web Host id
+             */
+            this.getWebHostId = function() { return webhost.getId(); };
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getType: function()
+        {
+            return Gitana.TypedIDConstants.TYPE_TRUSTED_DOMAIN_MAPPING;
+        },
+
+        /**
+         * @OVERRIDE
+         */
+        getUri: function()
+        {
+            return "/webhosts/" + this.getWebHostId() + "/trusteddomainmappings/" + this.getId();
         }
     });
 
@@ -24145,10 +26050,20 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            Chain(self.getPlatform()).readApplication(self.getApplicationId()).then(function() {
+            Chain(self.getPlatform()).trap(function(err) {
+
+                // application not found
+                callback(err);
+
+            }).readApplication(self.getApplicationId()).then(function() {
                 self.cache("application", this);
 
-                Chain(self.getPlatform()).findStackForDataStore(Gitana.TypedIDConstants.TYPE_APPLICATION, self.getApplicationId()).then(function() {
+                Chain(self.getPlatform()).trap(function(err) {
+
+                    // could not locate the application in the stack
+                    callback(err);
+
+                }).findStackForDataStore(Gitana.TypedIDConstants.TYPE_APPLICATION, self.getApplicationId()).then(function() {
 
                     // this = stack
                     self.cache("stack", this);

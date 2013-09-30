@@ -78,147 +78,154 @@ if (typeof window === "undefined")
     }
 }
 /*
-	Base.js, version 1.1a
-	Copyright 2006-2010, Dean Edwards
-	License: http://www.opensource.org/licenses/mit-license.php
-*/
+ Based on Base.js 1.1a (c) 2006-2010, Dean Edwards
+ Updated to pass JSHint and converted into a module by Kenneth Powers
+ License: http://www.opensource.org/licenses/mit-license.php
 
-var Base = function() {
-	// dummy
-};
+ GitHub: https://github.com/KenPowers/Base.js-Module
+ */
+/*global define:true module:true*/
+/*jshint eqeqeq:true*/
+(function (name, global, definition) {
+//    if (typeof module !== 'undefined') {
+//        module.exports = definition();
+//    } else if (typeof define !== 'undefined' && typeof define.amd === 'object') {
+//        define(definition);
+//    } else {
+        global[name] = definition();
+//    }
+})('Base', this, function () {
+    // Base Object
+    var Base = function () {};
 
-Base.extend = function(_instance, _static) { // subclass
-	var extend = Base.prototype.extend;
-	
-	// build the prototype
-	Base._prototyping = true;
-	var proto = new this;
-	extend.call(proto, _instance);
-  proto.base = function() {
-    // call this method from any other method to invoke that method's ancestor
-  };
-	delete Base._prototyping;
-	
-	// create the wrapper for the constructor function
-	//var constructor = proto.constructor.valueOf(); //-dean
-	var constructor = proto.constructor;
-	var klass = proto.constructor = function() {
-		if (!Base._prototyping) {
-			if (this._constructing || this.constructor == klass) { // instantiation
-				this._constructing = true;
-				constructor.apply(this, arguments);
-				delete this._constructing;
-			} else if (arguments[0] != null) { // casting
-				return (arguments[0].extend || extend).call(arguments[0], proto);
-			}
-		}
-	};
-	
-	// build the class interface
-	klass.ancestor = this;
-	klass.extend = this.extend;
-	klass.forEach = this.forEach;
-	klass.implement = this.implement;
-	klass.prototype = proto;
-	klass.toString = this.toString;
-	klass.valueOf = function(type) {
-		//return (type == "object") ? klass : constructor; //-dean
-		return (type == "object") ? klass : constructor.valueOf();
-	};
-	extend.call(klass, _static);
-	// class initialisation
-	if (typeof klass.init == "function") klass.init();
-	return klass;
-};
+    // Implementation
+    Base.extend = function (_instance, _static) { // subclass
+        var extend = Base.prototype.extend;
+        // build the prototype
+        Base._prototyping = true;
+        var proto = new this();
+        extend.call(proto, _instance);
+        proto.base = function () {
+            // call this method from any other method to invoke that method's ancestor
+        };
+        delete Base._prototyping;
+        // create the wrapper for the constructor function
+        //var constructor = proto.constructor.valueOf(); //-dean
+        var constructor = proto.constructor;
+        var klass = proto.constructor = function () {
+            if (!Base._prototyping) {
+                if (this._constructing || this.constructor === klass) { // instantiation
+                    this._constructing = true;
+                    constructor.apply(this, arguments);
+                    delete this._constructing;
+                } else if (arguments[0] !== null) { // casting
+                    return (arguments[0].extend || extend).call(arguments[0], proto);
+                }
+            }
+        };
+        // build the class interface
+        klass.ancestor = this;
+        klass.extend = this.extend;
+        klass.forEach = this.forEach;
+        klass.implement = this.implement;
+        klass.prototype = proto;
+        klass.toString = this.toString;
+        klass.valueOf = function (type) {
+            return (type === 'object') ? klass : constructor.valueOf();
+        };
+        extend.call(klass, _static);
+        // class initialization
+        if (typeof klass.init === 'function') klass.init();
+        return klass;
+    };
 
-Base.prototype = {	
-	extend: function(source, value) {
-		if (arguments.length > 1) { // extending with a name/value pair
-			var ancestor = this[source];
-			if (ancestor && (typeof value == "function") && // overriding a method?
-				// the valueOf() comparison is to avoid circular references
-				(!ancestor.valueOf || ancestor.valueOf() != value.valueOf()) &&
-				/\bbase\b/.test(value)) {
-				// get the underlying method
-				var method = value.valueOf();
-				// override
-				value = function() {
-					var previous = this.base || Base.prototype.base;
-					this.base = ancestor;
-					var returnValue = method.apply(this, arguments);
-					this.base = previous;
-					return returnValue;
-				};
-				// point to the underlying method
-				value.valueOf = function(type) {
-					return (type == "object") ? value : method;
-				};
-				value.toString = Base.toString;
-			}
-			this[source] = value;
-		} else if (source) { // extending with an object literal
-			var extend = Base.prototype.extend;
-			// if this object has a customised extend method then use it
-			if (!Base._prototyping && typeof this != "function") {
-				extend = this.extend || extend;
-			}
-			var proto = {toSource: null};
-			// do the "toString" and other methods manually
-			var hidden = ["constructor", "toString", "valueOf"];
-			// if we are prototyping then include the constructor
-			var i = Base._prototyping ? 0 : 1;
-			while (key = hidden[i++]) {
-				if (source[key] != proto[key]) {
-					extend.call(this, key, source[key]);
+    Base.prototype = {
+        extend: function (source, value) {
+            if (arguments.length > 1) { // extending with a name/value pair
+                var ancestor = this[source];
+                if (ancestor && (typeof value === 'function') && // overriding a method?
+                    // the valueOf() comparison is to avoid circular references
+                    (!ancestor.valueOf || ancestor.valueOf() !== value.valueOf()) && /\bbase\b/.test(value)) {
+                    // get the underlying method
+                    var method = value.valueOf();
+                    // override
+                    value = function () {
+                        var previous = this.base || Base.prototype.base;
+                        this.base = ancestor;
+                        var returnValue = method.apply(this, arguments);
+                        this.base = previous;
+                        return returnValue;
+                    };
+                    // point to the underlying method
+                    value.valueOf = function (type) {
+                        return (type === 'object') ? value : method;
+                    };
+                    value.toString = Base.toString;
+                }
+                this[source] = value;
+            } else if (source) { // extending with an object literal
+                var extend = Base.prototype.extend;
+                // if this object has a customized extend method then use it
+                if (!Base._prototyping && typeof this !== 'function') {
+                    extend = this.extend || extend;
+                }
+                var proto = {
+                    toSource: null
+                };
+                // do the "toString" and other methods manually
+                var hidden = ['constructor', 'toString', 'valueOf'];
+                // if we are prototyping then include the constructor
+                for (var i = Base._prototyping ? 0 : 1; i < hidden.length; i++) {
+                    var h = hidden[i];
+                    if (source[h] !== proto[h])
+                        extend.call(this, h, source[h]);
+                }
+                // copy each of the source object's properties to this object
+                for (var key in source) {
+                    if (!proto[key]) extend.call(this, key, source[key]);
+                }
+            }
+            return this;
+        }
+    };
 
-				}
-			}
-			// copy each of the source object's properties to this object
-			for (var key in source) {
-				if (!proto[key]) extend.call(this, key, source[key]);
-			}
-		}
-		return this;
-	}
-};
+    // initialize
+    Base = Base.extend({
+        constructor: function () {
+            this.extend(arguments[0]);
+        }
+    }, {
+        ancestor: Object,
+        version: '1.1',
+        forEach: function (object, block, context) {
+            for (var key in object) {
+                if (this.prototype[key] === undefined) {
+                    block.call(context, object[key], key, object);
+                }
+            }
+        },
+        implement: function () {
+            for (var i = 0; i < arguments.length; i++) {
+                if (typeof arguments[i] === 'function') {
+                    // if it's a function, call it
+                    arguments[i](this.prototype);
+                } else {
+                    // add the interface using the extend method
+                    this.prototype.extend(arguments[i]);
+                }
+            }
+            return this;
+        },
+        toString: function () {
+            return String(this.valueOf());
+        }
+    });
 
-// initialise
-Base = Base.extend({
-	constructor: function() {
-		this.extend(arguments[0]);
-	}
-}, {
-	ancestor: Object,
-	version: "1.1",
-	
-	forEach: function(object, block, context) {
-		for (var key in object) {
-			if (this.prototype[key] === undefined) {
-				block.call(context, object[key], key, object);
-			}
-		}
-	},
-		
-	implement: function() {
-		for (var i = 0; i < arguments.length; i++) {
-			if (typeof arguments[i] == "function") {
-				// if it's a function, call it
-				arguments[i](this.prototype);
-			} else {
-				// add the interface using the extend method
-				this.prototype.extend(arguments[i]);
-			}
-		}
-		return this;
-	},
-	
-	toString: function() {
-		return String(this.valueOf());
-	}
-});
-/*
+    // Return Base implementation
+    return Base;
+});/*
  json2.js
- 2011-10-19
+ 2012-10-08
 
  Public Domain.
 
@@ -377,8 +384,7 @@ Base = Base.extend({
 // Create a JSON object only if one does not already exist. We create the
 // methods in a closure to avoid creating global variables.
 
-var JSON;
-if (!JSON) {
+if (typeof JSON !== 'object') {
     JSON = {};
 }
 
@@ -702,8 +708,7 @@ if (!JSON) {
             throw new SyntaxError('JSON.parse');
         };
     }
-}());
-(function(window)
+}());(function(window)
 {
     Gitana = Base.extend(
     /** @lends Gitana.prototype */
@@ -719,7 +724,9 @@ if (!JSON) {
          *    "clientKey": {String} the oauth2 client id,
          *    "clientSecret": [String] the oauth2 client secret,
          *    "baseURL": [String] the relative URI path of the base URL (assumed to be "/proxy"),
-         *    "locale": [String] optional locale (assumed to be en_US)
+         *    "locale": [String] optional locale (assumed to be en_US),
+         *    "storage": [String|Object] Gitana.OAuth2.Storage implementation or a string identifying where to store
+         *       Gitana OAuth2 tokens ("local", "session", "memory") or empty for memory-only storage
          * }
          */
         constructor: function(settings)
@@ -731,6 +738,11 @@ if (!JSON) {
                 settings = {};
             }
 
+            if (settings.host)
+            {
+                settings.baseURL = settings.host + "/proxy";
+            }
+
             this.applicationInfo = {};
             this.stackInfo = {};
 
@@ -740,7 +752,8 @@ if (!JSON) {
                 "clientSecret": null,
                 "baseURL": "/proxy",
                 "locale": null,
-                "application": null
+                "application": null,
+                "storage": null
             };
             Gitana.copyKeepers(config, Gitana.loadDefaultConfig());
             Gitana.copyKeepers(config, settings);
@@ -758,16 +771,21 @@ if (!JSON) {
             this.locale = config.locale;
 
 
+
+
             //////////////////////////////////////////////////////////////////////////
             //
             // APPLY OAUTH2 SETTINGS
             //
 
             // set up our oAuth2 connection
-            var options = {
-                "clientKey": config.clientKey,
-                "clientSecret": config.clientSecret
-            };
+            var options = {};
+            if (config.clientKey) {
+                options.clientKey = config.clientKey;
+            }
+            if (config.clientSecret) {
+                options.clientSecret = config.clientSecret;
+            }
             if (this.baseURL)
             {
                 options.baseURL = this.baseURL;
@@ -802,7 +820,12 @@ if (!JSON) {
                     Gitana.copyInto(o, config);
                 }
 
-                self.http = new Gitana.OAuth2Http(o);
+                if (!o.storage)
+                {
+                    o.storage = this.getOriginalConfiguration().storage;
+                }
+
+                self.http = new Gitana.OAuth2Http(o, o.storage);
             };
 
             this.setAuthInfo = function(authInfo)
@@ -1332,10 +1355,16 @@ if (!JSON) {
          *     "redirectUri": "<redirectUri>"
          *   }
          *
-         * Gitana Ticket:
+         * Using Gitana Ticket from a cookie:
          *
          *   {
          *     "cookie": true
+         *   }
+         *
+         * Using Gitana Ticket (explicitly provided):
+         *
+         *   {
+         *     "ticket": "<ticket>"
          *   }
          *
          * An authentication failure handler can be passed as the final argument
@@ -1356,6 +1385,7 @@ if (!JSON) {
                 "username": null,
                 "password": null,
                 "accessToken": null,
+                "ticket": null,
                 "cookie": null
             };
             Gitana.copyKeepers(config, Gitana.loadDefaultConfig());
@@ -1368,6 +1398,13 @@ if (!JSON) {
             var doAuthenticate = function()
             {
                 var platform = this;
+
+                // we provide a fallback if no flow type is specified, using "password" flow with guest/guest
+                if (!config.code && !config.username && !config.accessToken && !config.cookie && !config.ticket)
+                {
+                    config.username = "guest";
+                    config.password = "guest";
+                }
 
                 //
                 // authenticate via the authentication flow
@@ -1527,6 +1564,46 @@ if (!JSON) {
                     });
 
                 }
+
+                //
+                // authenticate using an explicit gitana ticket
+                //
+                else if (config.ticket)
+                {
+                    // reuse an existing cookie (token flow)
+                    config.authorizationFlow = Gitana.OAuth2Http.TICKET;
+                    driver.resetHttp(config);
+                    driver.currentPlatform = null;
+
+                    // fetch the auth info
+                    driver.gitanaGet("/auth/info", {}, function(response) {
+
+                        var authInfo = new Gitana.AuthInfo(response);
+                        driver.setAuthInfo(authInfo);
+
+                        // store reference to platform
+                        driver.currentPlatform = result;
+
+                        // TODO: fix this
+                        // kill the JSESSIONID cookie which comes back from the proxy and ties us to a session
+                        // on the Gitana server
+                        Gitana.deleteCookie("JSESSIONID", "/");
+
+                        // now continue the platform chain after we reload
+                        platform.reload();
+                        platform.next();
+
+                    }, function(http) {
+
+                        // if authentication fails, respond to custom auth failure handler
+                        if (authFailureHandler)
+                        {
+                            authFailureHandler.call(platform, http);
+                        }
+
+                    });
+
+                }
                 else
                 {
                     throw new Error("Unsupported authentication flow - you must provide either a username, authorization code or access token");
@@ -1605,9 +1682,27 @@ if (!JSON) {
          */
         clearAuthentication: function()
         {
+            if (this.http.clearStorage)
+            {
+                this.http.clearStorage();
+            }
+
             this.resetHttp();
             Gitana.deleteCookie("GITANA_TICKET", "/");
+
             this.currentPlatform = null;
+        },
+
+        /**
+         * Refreshes the authentication access token.
+         *
+         * @param callback
+         */
+        refreshAuthentication: function(callback)
+        {
+            this.http.refresh(function(err) {
+                callback(err);
+            });
         },
 
         /**
@@ -1620,6 +1715,7 @@ if (!JSON) {
 
     });
 
+
     //
     // STATICS
     // Special Groups
@@ -1631,7 +1727,8 @@ if (!JSON) {
 
     // whether an automatic configuration should be loaded from the server
     // if so, we plug in the url we're going to auto-configure for
-    Gitana.autoConfigUri = false;
+    // we leave this undefined by default
+    //Gitana.autoConfigUri = undefined;
 
     // temporary location for this code
     Gitana.toCopyDependencyChain = function(typedID)
@@ -1642,6 +1739,10 @@ if (!JSON) {
         {
             array = array.concat(Gitana.toCopyDependencyChain(typedID.getBranch()));
         }
+        if (typedID.getType() == "association")
+        {
+            array = array.concat(Gitana.toCopyDependencyChain(typedID.getBranch()));
+        }
         else if (typedID.getType() == "branch")
         {
             array = array.concat(Gitana.toCopyDependencyChain(typedID.getRepository()));
@@ -1649,6 +1750,14 @@ if (!JSON) {
         else if (typedID.getType() == "platform")
         {
             // nothing to do here
+        }
+        else if (typedID.getType() == "stack")
+        {
+            array = array.concat(Gitana.toCopyDependencyChain(typedID.getPlatform()));
+        }
+        else if (typedID.getType() == "project")
+        {
+            array = array.concat(Gitana.toCopyDependencyChain(typedID.getPlatform()));
         }
         else
         {
@@ -1693,9 +1802,10 @@ if (!JSON) {
     // platform
     Gitana.TypedIDConstants.TYPE_PLATFORM = "platform";
     Gitana.TypedIDConstants.TYPE_AUTHENTICATION_GRANT = "authenticationGrant";
-    Gitana.TypedIDConstants.TYPE_BILLING_PROVIDERs_CONFIGURATION = "billingProviderConfiguration";
+    Gitana.TypedIDConstants.TYPE_BILLING_PROVIDERS_CONFIGURATION = "billingProviderConfiguration";
     Gitana.TypedIDConstants.TYPE_CLIENT = "client";
     Gitana.TypedIDConstants.TYPE_STACK = "stack";
+    Gitana.TypedIDConstants.TYPE_PROJECT = "project";
 
     // registrar
     Gitana.TypedIDConstants.TYPE_REGISTRAR = "registrar";
@@ -1826,12 +1936,28 @@ if (!JSON) {
             config = {"key": config};
         }
 
+        // if no config key specified, we can generate one...
         if (!config.key) {
-            config.key = "default";
+
+            // "ticket" authentication - key = ticket
+            if (config.ticket) {
+                config.key = config.ticket;
+            }
+            else if (missingConfig)
+            {
+                // if no config provided, use "default" key
+                config.key = "default";
+            }
+            else if (!Gitana.PLATFORM_CACHE("default"))
+            {
+                // if nothing cached in the platform cache for "default", we'll claim it
+                config.key = "default";
+            }
         }
 
-        // this gets call once the platform is drawn from cache or created
-        var setupContext = function()
+        // this gets called once the platform is drawn from cache or created
+        // fires the callback and passes in the platform or the app helper
+        var setupContext = function(platformCacheKey)
         {
             // NOTE: this == platform
 
@@ -1843,7 +1969,14 @@ if (!JSON) {
             Gitana.copyKeepers(appConfig, Gitana.loadDefaultConfig());
             Gitana.copyKeepers(appConfig, this.getDriver().getOriginalConfiguration());
             if (appConfig.application) {
-                this.app(function(err) {
+
+                var appSettings = {
+                    "application": appConfig.application
+                };
+                if (platformCacheKey) {
+                    appSettings.appCacheKey = platformCacheKey + "_" + appConfig.application
+                }
+                this.app(appSettings, function(err) {
                     if (callback) {
                         // NOTE: this == app helper
                         callback.call(this, err);
@@ -1867,9 +2000,9 @@ if (!JSON) {
             // platform already loaded
 
             // spawn off a new copy for thread safety
-            platform = new Gitana.Platform(platform.getCluster(), platform);
-            setupContext.call(platform);
-            return Chain(platform);
+            platform = Chain(new Gitana.Platform(platform.getCluster(), platform));
+            setupContext.call(platform, config.key);
+            return platform;
         }
 
         // if they didn't provide a config and made it this far, then lets assume a cookie based config?
@@ -1894,7 +2027,13 @@ if (!JSON) {
                 Gitana.PLATFORM_CACHE(config.key, this);
             }
 
-            setupContext.call(this);
+            // always cache on ticket as well
+            var ticket = this.getDriver().getAuthInfo().getTicket();
+            if (ticket) {
+                Gitana.PLATFORM_CACHE(ticket, this);
+            }
+
+            setupContext.call(this, config.key);
 
         });
     };
@@ -1906,16 +2045,33 @@ if (!JSON) {
      */
     Gitana.disconnect = function(key)
     {
-        if (!key) { key = "default"; }
+        if (!key) {
+            key = "default";
+        }
 
         var platform = Gitana.PLATFORM_CACHE(key);
         if (platform)
         {
+            // removed all cached apphelpers for this platform...
+            /*
             // removed the cached apphelper, if one is around
             var appId = platform.getDriver().getOriginalConfiguration().application;
             if (appId)
             {
-                delete Gitana.APPS[appId];
+                delete Gitana.APPS[key + "_" + appId];
+            }
+            */
+            var badKeys = [];
+            for (var k in Gitana.APPS)
+            {
+                if (k.indexOf(key + "_") == 0)
+                {
+                    badKeys.push(k);
+                }
+            }
+            for (var i = 0; i < badKeys.length; i++)
+            {
+                delete Gitana.APPS[badKeys[i]];
             }
 
             platform.getDriver().destroy();
@@ -1930,9 +2086,15 @@ if (!JSON) {
     Gitana.VERSION = "1.0.3";
 
     // allow for optional global assignment
-    if (window && !window.Gitana) {
+    // TODO: until we clean up the "window" variable reliance, we have to always set onto window again
+    // TODO: to support loading within NodeJS
+    //if (window && !window.Gitana) {
+    if (window) {
         window.Gitana = Gitana;
     }
+
+    // insertion point for on-load adjustments (cloudcms-net server)
+    Gitana.__INSERT_MARKER = null;
 
 })(window);(function(global) {
     Gitana.Error = function () {
@@ -2382,17 +2544,23 @@ if (!JSON) {
          *
          * @class Gitana.OAuth2Http
          */
-        constructor: function(options)
+        constructor: function(options, storage)
         {
             var self = this;
 
-            // preset the access token state
-            this.accessToken = null;
-            this.refreshToken = null;
-            this.cookieMode = false;
-            this.grantedScope = null;
-            this.expiresIn = null;
-            this.grantTime = null;
+            // storage for OAuth credentials
+            // this can either be a string ("local", "session", "memory") or a storage instance or empty
+            // if empty, memory-based storage is assumed
+            if (storage === null || typeof(storage) === "string")
+            {
+                storage = new Gitana.OAuth2Http.Storage(storage);
+            }
+
+            // cookie mode
+            this.cookieMode = null;
+
+            // ticket mode
+            this.ticketMode = null;
 
             // preset the error state
             this.error = null;
@@ -2418,6 +2586,7 @@ if (!JSON) {
             var clientSecret = options.clientSecret;
 
             // authorization flow
+            // if none specified, assume CODE
             this.authorizationFlow = options.authorizationFlow || Gitana.OAuth2Http.AUTHORIZATION_CODE;
 
             // optional
@@ -2446,15 +2615,80 @@ if (!JSON) {
                 }
             }
 
-            if (this.authorizationFlow == Gitana.OAuth2Http.TOKEN)
-            {
-                this.accessToken = options.accessToken;
-            }
-
             if (this.authorizationFlow == Gitana.OAuth2Http.COOKIE)
             {
                 this.cookieMode = true;
             }
+
+            if (this.authorizationFlow == Gitana.OAuth2Http.TICKET)
+            {
+                this.ticketMode = options.ticket;
+            }
+
+
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // ACCESSORS
+            //
+            ////////////////////////////////////////////////////////////////////////////////////////////////
+
+            /**
+             * Clears persisted storage of auth data
+             */
+            this.clearStorage = function()
+            {
+                storage.clear();
+            };
+
+            /**
+             * Gets or saves the access token
+             *
+             * @param value [String] optional value
+             */
+            this.accessToken = function(value)
+            {
+                return storage.poke("accessToken", value);
+            };
+
+            /**
+             * Gets or saves the refresh token
+             *
+             * @param value [String] optional value
+             */
+            this.refreshToken = function(value)
+            {
+                return storage.poke("refreshToken", value);
+            };
+
+            /**
+             * Gets or saves the granted scope
+             *
+             * @param value [String] optional value
+             */
+            this.grantedScope = function(value)
+            {
+                return storage.poke("grantedScope", value);
+            };
+
+            /**
+             * Gets or saves the expires in value
+             *
+             * @param value [String] optional value
+             */
+            this.expiresIn = function(value)
+            {
+                return storage.poke("expiresIn", value);
+            };
+
+            /**
+             * Gets or saves the grant time
+             *
+             * @param value [String] optional value
+             */
+            this.grantTime = function(value)
+            {
+                return storage.poke("grantTime", value);
+            };
 
             this.getClientAuthorizationHeader = function() {
 
@@ -2468,7 +2702,7 @@ if (!JSON) {
 
             this.getBearerAuthorizationHeader = function()
             {
-                return "Bearer " + self.accessToken;
+                return "Bearer " + self.accessToken();
             };
 
             this.getPrefixedTokenURL = function()
@@ -2486,6 +2720,20 @@ if (!JSON) {
 
                 return rebasedURL;
             };
+
+
+            // if they initiatialized with an access token, clear and write into persisted state
+            // unless they're continuing an existing token
+            if (this.authorizationFlow == Gitana.OAuth2Http.TOKEN)
+            {
+                var existingAccessToken = this.accessToken();
+                if (existingAccessToken != options.accessToken)
+                {
+                    storage.clear();
+                }
+
+                this.accessToken(existingAccessToken);
+            }
 
             this.base();
         },
@@ -2518,11 +2766,19 @@ if (!JSON) {
                     }
                     else
                     {
-                        self.accessToken = object["access_token"];
-                        self.refreshToken = object["refresh_token"];
-                        self.expiresIn = object["expires_in"];
-                        self.grantedScope = object["scope"];
-                        self.grantTime = new Date().getTime();
+                        var _accessToken = object["access_token"];
+                        var _refreshToken = object["refresh_token"];
+                        var _expiresIn = object["expires_in"];
+                        var _grantedScope = object["scope"];
+                        var _grantTime = new Date().getTime();
+
+                        // store into persistent storage
+                        self.clearStorage();
+                        self.accessToken(_accessToken);
+                        self.refreshToken(_refreshToken);
+                        self.expiresIn(_expiresIn);
+                        self.grantedScope(_grantedScope);
+                        self.grantTime(_grantTime);
                     }
 
                     success();
@@ -2593,11 +2849,20 @@ if (!JSON) {
                     }
                     else
                     {
-                        self.accessToken = object["access_token"];
-                        self.refreshToken = object["refresh_token"];
-                        self.expiresIn = object["expires_in"];
+                        var _accessToken = object["access_token"];
+                        var _refreshToken = object["refresh_token"];
+                        var _expiresIn = object["expires_in"];
                         //self.grantedScope = object["scope"]; // this doesn't come back on refresh, assumed the same
-                        self.grantTime = new Date().getTime();
+                        var _grantTime = new Date().getTime();
+                        var _grantedScope = self.grantedScope();
+
+                        // store into persistent storage
+                        self.clearStorage();
+                        self.accessToken(_accessToken);
+                        self.refreshToken(_refreshToken);
+                        self.expiresIn(_expiresIn);
+                        self.grantedScope(_grantedScope);
+                        self.grantTime(_grantTime);
                     }
 
                     success();
@@ -2612,7 +2877,7 @@ if (!JSON) {
                     url: self.getPrefixedTokenURL()
                 };
 
-                var queryString = "grant_type=refresh_token&refresh_token=" + self.refreshToken;
+                var queryString = "grant_type=refresh_token&refresh_token=" + self.refreshToken();
                 if (self.requestedScope)
                 {
                     queryString += "&scope=" + Gitana.Http.URLEncode(self.requestedScope);
@@ -2642,22 +2907,50 @@ if (!JSON) {
                 {
                     if (autoAttemptRefresh)
                     {
-                        if (http.code == 401)
+                        // there are a few good reasons why this might naturally fail
+                        //
+                        // 1.  our access token is invalid, has expired or has been forcefully invalidated on the Cloud CMS server
+                        //     in this case, we get back a 200 and something like http.text =
+                        //     {"error":"invalid_token","error_description":"Invalid access token: blahblahblah"}
+                        //
+                        // 2.  the access token no longer permits access to the resource
+                        //     in this case, we get back a 401
+                        //     it might not make much sense to re-request a new access token, but we do just in case.
+
+                        var isError = false;
+                        if (http.text) {
+                            var responseData = JSON.parse(http.text);
+                            if (responseData.error)
+                            {
+                                isError = true;
+                            }
+                        }
+                        var is401 = (http.code == 401);
+
+                        // handle both cases
+                        if (isError || is401)
                         {
-                            // if we caught a 401, it may be because the access token expired
-                            // if we have a refresh token, get a new access token
-                            doRefreshAccessToken(function() {
+                            if (self.refreshToken())
+                            {
+                                // use the refresh token to acquire a new access token
+                                doRefreshAccessToken(function() {
 
-                                // success, got a new access token
+                                    // success, got a new access token
 
-                                doCall(false);
+                                    doCall(false);
 
-                            }, function() {
+                                }, function() {
 
-                                // failure, nothing else we can do
-                                // call into intended failure handler with the original failure http object
+                                    // failure, nothing else we can do
+                                    // call into intended failure handler with the original failure http object
+                                    options.failure(http, xhr);
+                                });
+                            }
+                            else
+                            {
+                                // fail case - nothing we can do
                                 options.failure(http, xhr);
-                            });
+                            }
                         }
                         else
                         {
@@ -2681,9 +2974,13 @@ if (!JSON) {
                 {
                     o.headers = {};
                 }
-                if (!self.cookieMode)
+                if (!self.cookieMode && !self.ticketMode)
                 {
                     o.headers["Authorization"] = self.getBearerAuthorizationHeader();
+                }
+                if (self.ticketMode)
+                {
+                    o.headers["GITANA_TICKET"] = encodeURIComponent(self.ticketMode);
                 }
                 o.url = self.getPrefixedURL(o.url);
 
@@ -2693,9 +2990,9 @@ if (!JSON) {
 
 
             // if no access token, request one
-            if (!self.accessToken && !this.cookieMode)
+            if (!self.accessToken() && !this.cookieMode && !this.ticketMode)
             {
-                if (!self.refreshToken)
+                if (!self.refreshToken())
                 {
                     // no refresh token, do an authorization call
                     doGetAccessToken(function() {
@@ -2731,8 +3028,219 @@ if (!JSON) {
                 // we already have an access token
                 doCall(true);
             }
+        },
+
+        /**
+         * Refreshes the OAuth2 access token.
+         */
+        refresh: function(callback)
+        {
+            var self = this;
+
+            var onSuccess = function(response)
+            {
+                var object = JSON.parse(response.text);
+                if (response["error"])
+                {
+                    self.error = object["error"];
+                    self.errorDescription = object["error_description"];
+                    self.errorUri = object["error_uri"];
+
+                    callback({
+                        "error": self.error,
+                        "message": self.errorDescription
+                    });
+                }
+                else
+                {
+                    var _accessToken = object["access_token"];
+                    var _refreshToken = object["refresh_token"];
+                    var _expiresIn = object["expires_in"];
+                    //self.grantedScope = object["scope"]; // this doesn't come back on refresh, assumed the same
+                    var _grantTime = new Date().getTime();
+                    var _grantedScope = self.grantedScope();
+
+                    // store into persistent storage
+                    self.clearStorage();
+                    self.accessToken(_accessToken);
+                    self.refreshToken(_refreshToken);
+                    self.expiresIn(_expiresIn);
+                    self.grantedScope(_grantedScope);
+                    self.grantTime(_grantTime);
+
+                    callback();
+                }
+            };
+
+            var onFailure = function(http, xhr)
+            {
+                callback({
+                    "message": "Unable to refresh access token"
+                });
+            };
+
+            var o = {
+                success: onSuccess,
+                failure: onFailure,
+                headers: {
+                    "Authorization": self.getClientAuthorizationHeader()
+                },
+                url: self.getPrefixedTokenURL()
+            };
+
+            var queryString = "grant_type=refresh_token&refresh_token=" + self.refreshToken();
+            if (self.requestedScope)
+            {
+                queryString += "&scope=" + Gitana.Http.URLEncode(self.requestedScope);
+            }
+
+            // append into query string
+            if (o.url.indexOf("?") > -1)
+            {
+                o.url = o.url + "&" + queryString;
+            }
+            else
+            {
+                o.url = o.url + "?" + queryString;
+            }
+
+            self.invoke(o);
         }
     });
+
+    /**
+     * Provides a storage location for OAuth2 credentials
+     *
+     * @param type
+     * @param scope
+     *
+     * @return storage instance
+     * @constructor
+     */
+    Gitana.OAuth2Http.Storage = function(scope)
+    {
+        // in-memory implementation of HTML5 storage interface
+        var memoryStorage = function() {
+
+            var memory = {};
+
+            var m = {};
+            m.removeItem = function(key)
+            {
+                delete memory[key];
+            };
+
+            m.getItem = function(key)
+            {
+                return memory[key];
+            };
+
+            m.setItem = function(key, value)
+            {
+                memory[key] = value;
+            };
+
+            return m;
+        }();
+
+        /**
+         * Determines whether the current runtime environment supports HTML5 local storage
+         *
+         * @return {Boolean}
+         */
+        var supportsLocalStorage = function()
+        {
+            try {
+                return 'localStorage' in window && window['localStorage'] !== null;
+            } catch (e) {
+                return false;
+            }
+        };
+
+        /**
+         * Determines whether the current runtime environment supports HTML5 session storage.
+         *
+         * @return {Boolean}
+         */
+        var supportsSessionStorage = function()
+        {
+            try {
+                return 'sessionStorage' in window && window['sessionStorage'] !== null;
+            } catch (e) {
+                return false;
+            }
+        };
+
+        var acquireStorage = function()
+        {
+            var storage = null;
+
+            // store
+            if (scope == "session" && supportsSessionStorage())
+            {
+                storage = sessionStorage;
+            }
+            else if (scope == "local" && supportsLocalStorage())
+            {
+                storage = localStorage;
+            }
+            else
+            {
+                // fall back to memory-based storage
+                storage = memoryStorage;
+            }
+
+            return storage;
+        };
+
+        // result object
+        var r = {};
+
+        /**
+         * Clears state.
+         */
+        r.clear = function()
+        {
+            acquireStorage().removeItem("gitanaAuthState");
+        };
+
+        /**
+         * Pokes and peeks the value of a key in the state.
+         *
+         * @param key
+         * @param value
+         * @return {*}
+         */
+        r.poke = function(key, value)
+        {
+            var state = {};
+
+            var stateString = acquireStorage().getItem("gitanaAuthState");
+            if (stateString) {
+                state = JSON.parse(stateString);
+            }
+
+            var touch = false;
+            if (typeof(value) !== "undefined" && value !== null)
+            {
+                state[key] = value;
+                touch = true;
+            }
+            else if (value === null)
+            {
+                delete state[key];
+                touch = true;
+            }
+
+            if (touch) {
+                acquireStorage().setItem("gitanaAuthState", JSON.stringify(state));
+            }
+
+            return state[key];
+        };
+
+        return r;
+    };
 
 }(this));
 
@@ -2741,6 +3249,7 @@ Gitana.OAuth2Http.PASSWORD = "password";
 Gitana.OAuth2Http.AUTHORIZATION_CODE = "authorization_code";
 Gitana.OAuth2Http.TOKEN = "token";
 Gitana.OAuth2Http.COOKIE = "cookie";
+Gitana.OAuth2Http.TICKET = "ticket";
 
 
 
@@ -4004,8 +4513,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getClientId: function()
         {
             return this["clientId"];
-        }
+        },
 
+        getTicket: function()
+        {
+            return this["ticket"];
+        }
     });
 
 })(window);
@@ -4513,77 +5026,6 @@ Gitana.OAuth2Http.COOKIE = "cookie";
     };
 
     /**
-     * Determines whether the JavaScript engine is running on Titanium
-     */
-    /*
-    Gitana.isTitanium = function()
-    {
-        var isTitanium = true;
-
-        if (typeof Titanium === "undefined")
-        {
-            isTitanium = false;
-        }
-
-        return isTitanium;
-    };
-    */
-
-    /*
-    Gitana.writeCookie = function(cookieName, cookieValue, path)
-    {
-        if (typeof(document) !== "undefined")
-        {
-            if (!path)
-            {
-                path = "/";
-            }
-
-            document.cookie = cookieName + "=" + cookieValue + ";path=" + path;
-        }
-    };
-
-    Gitana.deleteCookie = function(cookieName, path)
-    {
-        if (typeof(document) !== "undefined")
-        {
-            if (!path)
-            {
-                path = "/";
-            }
-
-            document.cookie = cookieName + "=" + ";path=" + path + ";expires=Thu, 01-Jan-1970 00:00:01 GMT";
-        }
-    };
-
-    Gitana.readCookie = function(cookieName)
-    {
-        var name = cookieName ? cookieName : "GITANA_TICKET";
-        var returnValue = null;
-        if (document.cookie)
-        {
-            var cookies = document.cookie.split(';');
-            for (var i = 0; i < cookies.length; i++)
-            {
-                var cookie = cookies[i].replace(/^\s+|\s+$/g, "");
-                // Does this cookie string begin with the name we want?
-                if (!name)
-                {
-                    var nameLength = cookie.indexOf('=');
-                    returnValue[ cookie.substr(0, nameLength)] = decodeURIComponent(cookie.substr(nameLength+1));
-                }
-                else if (cookie.substr(0, name.length + 1) == (name + '='))
-                {
-                    returnValue = decodeURIComponent(cookie.substr(name.length + 1));
-                    break;
-                }
-            }
-        }
-        return returnValue;
-    };
-    */
-
-    /**
      * Writes a cookie.
      *
      * @param {String} name
@@ -4811,18 +5253,17 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             {
                 // try to populate the map from our cached values on the node (if they exist)
                 var existingMap = self.getSystemMetadata()["attachments"];
-                if (!existingMap) {
-                    throw new Error("Local system attachments not found");
-                }
-
-                // attachments that come off of system() don't have "attachmentId" on their json object
-                // instead, the "attachmentId" is the key into the map.
-
-                // so here, in terms of normalizing things, we copy "attachmentId" into the json object
-                for (var key in existingMap)
+                if (existingMap)
                 {
-                    var value = result[key];
-                    value["attachmentId"] = key;
+                    // attachments that come off of system() don't have "attachmentId" on their json object
+                    // instead, the "attachmentId" is the key into the map.
+
+                    // so here, in terms of normalizing things, we copy "attachmentId" into the json object
+                    for (var key in existingMap)
+                    {
+                        var value = result[key];
+                        value["attachmentId"] = key;
+                    }
                 }
 
                 //result.handleResponse(existingMap);
@@ -4904,6 +5345,45 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         };
     };
 
+    Gitana.Methods.getPreviewUri = function(prefix)
+    {
+        if (!prefix) {
+            prefix = "preview";
+        }
+
+        return function(name, config) {
+
+            var url = this.getDriver().baseURL + this.getUri() + "/" + prefix + "/" + name;
+
+            if (config)
+            {
+                var first = true;
+
+                for (var key in config)
+                {
+                    if (first)
+                    {
+                        url += "?";
+                    }
+                    else
+                    {
+                        url += "&";
+                    }
+
+                    var value = config[key];
+                    if (value)
+                    {
+                        url += key + "=" + value;
+                    }
+
+                    first = false;
+                }
+            }
+
+            return url;
+        };
+    };
+
 })(window);(function(window)
 {
     // if we're running on the Cloud CMS hosted platform, we can auto-acquire the client key that we should use
@@ -4912,17 +5392,20 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         // check to make sure location exists (only available in browsers)
         if (typeof window.location != "undefined")
         {
-            var uri = window.location.href;
-            var z1 = uri.indexOf(window.location.pathname);
-            z1 = uri.indexOf("/", z1 + 2);
-            if (z1 > -1)
+            if (typeof(Gitana.autoConfigUri) === "undefined")
             {
-                uri = uri.substring(0, z1);
-            }
+                var uri = window.location.href;
+                var z1 = uri.indexOf(window.location.pathname);
+                z1 = uri.indexOf("/", z1 + 2);
+                if (z1 > -1)
+                {
+                    uri = uri.substring(0, z1);
+                }
 
-            if (uri.indexOf("cloudcms.net") > -1)
-            {
-                Gitana.autoConfigUri = uri;
+                if (uri.indexOf("cloudcms.net") > -1)
+                {
+                    Gitana.autoConfigUri = uri;
+                }
             }
         }
 
@@ -5135,12 +5618,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             return this.create(Gitana.WarehouseMap, platform, object);
         },
 
-        webHost: function(platform, object)
+        webhost: function(platform, object)
         {
             return this.create(Gitana.WebHost, platform, object);
         },
 
-        webHostMap: function(platform, object)
+        webhostMap: function(platform, object)
         {
             return this.create(Gitana.WebHostMap, platform, object);
         },
@@ -5708,7 +6191,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                         if (x == 'empty') {
                             while (list.length > 0) { list.shift(); }
                         } else {
-                            list.push(x);
+                            if (!x && x.length) {
+                                for (var i = 0; i < x.length; i++) {
+                                    list.push(x[i]);
+                                }
+                            }
+                            else
+                            {
+                                list.push(x);
+                            }
                         }
                     }
                     return list;
@@ -5740,6 +6231,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             })();
 
             this.base(driver, object);
+
+            // in case the incoming object is a state-carrying object (like another map)
+            if (object)
+            {
+                this.chainCopyState(object);
+            }
         },
 
         /**
@@ -6118,7 +6615,22 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             return this.then(function() {
 
-                this.__keys().sort(comparator);
+                // build a temporary array of values
+                var array = [];
+                for (var i = 0; i < this.__keys().length; i++) {
+                    var key = this.__keys()[i];
+                    array.push(this[key]);
+                }
+
+                // sort the array
+                array.sort(comparator);
+
+                // now reset keys according to the order of the array
+                this.__keys("empty");
+                for (var i = 0; i < array.length; i++)
+                {
+                    this.__keys().push(array[i].getId());
+                }
 
             });
         },
@@ -6234,7 +6746,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
-            var chainable = this.buildObject({});
+            var json = {};
+            if (this.__keys().length > 0)
+            {
+                json = this[this.__keys()[0]];
+            }
+
+            var chainable = this.buildObject(json);
 
             return this.subchain(chainable).then(function() {
 
@@ -6286,8 +6804,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         {
             var self = this;
 
+            var json = {};
+            if (this[key])
+            {
+                json = this[key];
+            }
+
             // what we hand back
-            var result = this.subchain(this.buildObject({}));
+            var result = this.subchain(this.buildObject(json));
 
             // preload some work
             return result.then(function() {
@@ -7616,6 +8140,18 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getDownloadUri: function()
         {
             return this.getDriver().baseURL + this.getUri();
+        },
+
+        getPreviewUri: function(name, config)
+        {
+            if (!config)
+            {
+                config = {};
+            }
+
+            config.attachment = this.attachmentId;
+
+            return this.persistable().getPreviewUri(name, config);
         },
 
         /**
@@ -9563,7 +10099,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         /**
          * @OVERRIDE
          */
-        getUri: function()
+            getUri: function()
         {
             return "";
         },
@@ -9605,8 +10141,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         /** @Override **/
         update: function()
         {
-            // not implemented
-            return this;
+            var uriFunction = function()
+            {
+                return this.getUri() + "/";
+            };
+
+            return this.chainUpdate(null, uriFunction);
         },
 
         /**
@@ -10304,6 +10844,31 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             });
         },
 
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // PROJECT TYPES
+        //
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Lists the project types available for this platform.
+         *
+         * @chained project type map
+         *
+         * @param [Object] pagination pagination (optional)
+         */
+        listProjectTypes: function(pagination)
+        {
+            // prepare params (with pagination)
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var chainable = this.getFactory().projectMap(this);
+            return this.chainGet(chainable, "/projecttypes", params);
+        },
 
 
 
@@ -10608,6 +11173,33 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             });
         },
 
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // APPLICATION TYPES
+        //
+        /////////////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Lists the application types available for this platform.
+         *
+         * @chained application type map
+         *
+         * @param [Object] pagination pagination (optional)
+         */
+        listApplicationTypes: function(pagination)
+        {
+            // prepare params (with pagination)
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var chainable = this.getFactory().applicationMap(this);
+            return this.chainGet(chainable, "/applicationtypes", params);
+        },
+
+
 
 
         //////////////////////////////////////////////////////////////////////////////////////////
@@ -10739,25 +11331,6 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         // AUTHENTICATION GRANTS
         //
         //////////////////////////////////////////////////////////////////////////////////////////
-
-        /**
-         * Lists the authentication grants.
-         *
-         * @param pagination
-         *
-         * @chained authentication grant map
-         */
-        listAuthenticationGrants: function(pagination)
-        {
-            var params = {};
-            if (pagination)
-            {
-                Gitana.copyInto(params, pagination);
-            }
-
-            var chainable = this.getFactory().authenticationGrantMap(this);
-            return this.chainGet(chainable, "/auth/grants", params);
-        },
 
         /**
          * Reads an authentication grant.
@@ -11123,7 +11696,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 Gitana.copyInto(params, pagination);
             }
 
-            var chainable = this.getFactory().webHostMap(this);
+            var chainable = this.getFactory().webhostMap(this);
             return this.chainGet(chainable, "/webhosts", params);
         },
 
@@ -11136,7 +11709,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readWebHost: function(webhostId)
         {
-            var chainable = this.getFactory().webHost(this);
+            var chainable = this.getFactory().webhost(this);
             return this.chainGet(chainable, "/webhosts/" + webhostId);
         },
 
@@ -11149,7 +11722,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createWebHost: function(object)
         {
-            var chainable = this.getFactory().webHost(this);
+            var chainable = this.getFactory().webhost(this);
             return this.chainCreate(chainable, object, "/webhosts");
         },
 
@@ -11163,7 +11736,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         queryWebHosts: function(query, pagination)
         {
-            var chainable = this.getFactory().webHostMap(this);
+            var chainable = this.getFactory().webhostMap(this);
 
             // prepare params (with pagination)
             var params = {};
@@ -11448,6 +12021,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * Generates a URI to a preview resource.
+         */
+        getTenantPreviewUri: Gitana.Methods.getPreviewUri("tenant/preview"),
+
+
+        /**
          * Connects to a specific application on the platform.  Preloads any application data and stack information
          * and then fires into a callback with context set to application helper.
          *
@@ -11470,7 +12049,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             // build preload config
             var config = {
-                "application": null
+                "application": null,
+                "appCacheKey": null
             };
             Gitana.copyKeepers(config, Gitana.loadDefaultConfig());
             Gitana.copyKeepers(config, self.getDriver().getOriginalConfiguration());
@@ -11483,11 +12063,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             // is this app context already cached?
             //var cacheKey = self.getId() + "/" + config.application;
-            var cacheKey = config.application;
-            if (Gitana.APPS && Gitana.APPS[cacheKey])
+            var cacheKey = config.appCacheKey;
+            if (cacheKey)
             {
-                callback.call(Chain(Gitana.APPS[cacheKey]));
-                return;
+                if (Gitana.APPS && Gitana.APPS[cacheKey])
+                {
+                    callback.call(Chain(Gitana.APPS[cacheKey]));
+                    return;
+                }
             }
 
             // load and cache
@@ -11504,7 +12087,11 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                     return;
                 }
 
-                Gitana.APPS[cacheKey] = helper;
+                if (cacheKey)
+                {
+                    Gitana.APPS[cacheKey] = helper;
+                }
+
                 callback.call(Chain(helper));
             });
         }
@@ -11606,6 +12193,19 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 // NOTE: we return false to tell the chain that we'll manually call next()
                 return false;
             });
+        },
+
+        /**
+         * Finds the stack for this data store.
+         *
+         * @param datastoreType
+         * @param datastoreId
+         *
+         * @chained stack
+         */
+        findStack: function()
+        {
+            return this.subchain(this.getPlatform()).findStackForDataStore(this.getType(), this.getId());
         }
 
     });
@@ -12051,6 +12651,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         unattach: Gitana.Methods.unattach(),
 
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
 
 
 
@@ -12446,7 +13050,29 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         getEnabled: function()
         {
             return this.get("enabled");
+        },
+
+        /**
+         * Lists the authentication grants for this client
+         *
+         * @param pagination
+         *
+         * @chained authentication grant map
+         */
+        listAuthenticationGrants: function(pagination)
+        {
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            params.clientId = this.getId();
+
+            var chainable = this.getFactory().authenticationGrantMap(this.getPlatform());
+            return this.chainGet(chainable, "/auth/grants", params);
         }
+
     });
 
 })(window);
@@ -12818,7 +13444,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         getType: function()
         {
-            return Gitana.TypedIDConstants.TYPE_STACK;
+            return Gitana.TypedIDConstants.TYPE_PROJECT;
         },
 
         /**
@@ -12889,6 +13515,11 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @param attachmentId
          */
         unattach: Gitana.Methods.unattach(),
+
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
 
         /**
          * Reads the stack for the project, if it exists.
@@ -13136,13 +13767,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createSettings: function(object)
         {
+            var self = this;
+
             // Makes sure we have an empty settings key
             if (object["settings"] == null)
             {
                 object["settings"] = {};
             }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/settings";
+            };
+
             var chainable = this.getFactory().settings(this);
-            return this.chainCreate(chainable, object, this.getUri() + "/settings");
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -13154,14 +13793,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         listSettings: function(pagination)
         {
+            var self = this;
+
             var params = {};
             if (pagination)
             {
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return self.getUri() + "/settings";
+            };
+
             var chainable = this.getFactory().settingsMap(this);
-            return this.chainGet(chainable, this.getUri() + "/settings", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -13173,8 +13819,15 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readSettings: function(settingId)
         {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/settings/" + settingId;
+            };
+
             var chainable = this.getFactory().settings(this);
-            return this.chainGet(chainable, this.getUri() + "/settings/" + settingId);
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -13208,8 +13861,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * Reads the application settings for the given scope and key.
          * If the settings doesn't exist, creates an empty one.
          *
-         * @param {String } scope (optional)
-         * @param {String) key (optional)
+         * @param {String} scope (optional)
+         * @param {String} key (optional)
          */
         readApplicationSettings: function(scope,  key)
         {
@@ -13352,9 +14005,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createRegistration: function(object)
         {
+            var self = this;
+
             var chainable = this.getFactory().registration(this);
 
-            return this.chainCreate(chainable, object, this.getUri() + "/registrations");
+            var uriFunction = function()
+            {
+                return self.getUri() + "/registrations";
+            };
+
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -13366,14 +14026,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         listRegistrations: function(pagination)
         {
+            var self = this;
+
             var params = {};
             if (pagination)
             {
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return self.getUri() + "/registrations";
+            };
+
             var chainable = this.getFactory().registrationMap(this);
-            return this.chainGet(chainable, this.getUri() + "/registrations", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -13385,9 +14052,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readRegistration: function(registrationId)
         {
+            var self = this;
+
             var chainable = this.getFactory().registration(this);
 
-            return this.chainGet(chainable, this.getUri() + "/registrations/" + registrationId);
+            var uriFunction = function()
+            {
+                return self.getUri() + "/registrations/" + registrationId;
+            };
+
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -13478,9 +14152,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createEmailProvider: function(object)
         {
+            var self = this;
+
             var chainable = this.getFactory().emailProvider(this);
 
-            return this.chainCreate(chainable, object, this.getUri() + "/emailproviders");
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emailproviders";
+            };
+
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -13492,14 +14173,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         listEmailProviders: function(pagination)
         {
+            var self = this;
+
             var params = {};
             if (pagination)
             {
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emailproviders";
+            };
+
             var chainable = this.getFactory().emailProviderMap(this);
-            return this.chainGet(chainable, this.getUri() + "/emailproviders", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -13511,9 +14199,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readEmailProvider: function(emailProviderId)
         {
+            var self = this;
+
             var chainable = this.getFactory().emailProvider(this);
 
-            return this.chainGet(chainable, this.getUri() + "/emailproviders/" + emailId);
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emailproviders/" + emailProviderId;
+            };
+
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -13606,9 +14301,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         createEmail: function(object)
         {
+            var self = this;
+
             var chainable = this.getFactory().email(this);
 
-            return this.chainCreate(chainable, object, this.getUri() + "/emails");
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emails";
+            };
+
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -13620,14 +14322,21 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         listEmails: function(pagination)
         {
+            var self = this;
+
             var params = {};
             if (pagination)
             {
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emails";
+            };
+
             var chainable = this.getFactory().emailMap(this);
-            return this.chainGet(chainable, this.getUri() + "/emails", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -13639,9 +14348,16 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readEmail: function(emailId)
         {
+            var self = this;
+
             var chainable = this.getFactory().email(this);
 
-            return this.chainGet(chainable, this.getUri() + "/emails/" + emailId);
+            var uriFunction = function()
+            {
+                return self.getUri() + "/emails/" + emailId;
+            };
+
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -14010,7 +14726,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param attachmentId
          */
-        unattach: Gitana.Methods.unattach()
+        unattach: Gitana.Methods.unattach(),
+
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri()
 
     });
 
@@ -14318,6 +15039,8 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         send: function(email)
         {
+            var self = this;
+
             var emailId = null;
             if (Gitana.isString(email))
             {
@@ -14328,7 +15051,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 emailId = email.getId();
             }
 
-            return this.chainPostEmpty(this, this.getUri() + "/send?email=" + emailId);
+            var uriFunction = function()
+            {
+                return self.getUri() + "/send?email=" + emailId;
+            };
+
+            return this.chainPostEmpty(this, uriFunction);
         }
 
     });
@@ -16049,6 +16777,11 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         unattach: Gitana.Methods.unattach(),
 
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
+
 
         //////////////////////////////////////////////////////////////////////////////////////////
         //
@@ -16283,6 +17016,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         unattach: Gitana.Methods.unattach(),
 
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
 
 
         //////////////////////////////////////////////////////////////////////////////////////////
@@ -17425,26 +18162,26 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         /**
          * Retrieves a list of all of the users on any domain that have this identity applied to them.
          *
-         * @param pagination
+         * @param tenantId
          */
-        findUsers: function(pagination)
+        findPolicyUsers: function(tenantId)
         {
             var self = this;
 
             var uriFunction = function()
             {
-                return self.getUri() + "/users";
+                return self.getUri() + "/policy/users";
             };
 
             var domain = new Gitana.Domain(this.getPlatform());
 
             var chainable = this.getFactory().domainPrincipalMap(domain);
 
-            // prepare params (with pagination)
+            // prepare params
             var params = {};
-            if (pagination)
+            if (tenantId)
             {
-                Gitana.copyInto(params, pagination);
+                params.tenantId = tenantId;
             }
 
             return this.chainGet(chainable, uriFunction, params);
@@ -17456,16 +18193,40 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param pagination
          */
-        findUserForTenant: function(tenantId)
+        findPolicyUserForTenant: function(tenantId)
         {
             var self = this;
 
             var uriFunction = function()
             {
-                return self.getUri() + "/user";
+                return self.getUri() + "/policy/user";
             };
 
             var chainable = this.getFactory().domainPrincipal(this);
+
+            // prepare params (with pagination)
+            var params = {};
+            params["tenantId"] = tenantId;
+
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Finds the user on a tenant platform that has this identity.
+         * If multiple users have this identity, the first one is chosen.
+         *
+         * @param pagination
+         */
+        findPolicyUsersForTenant: function(tenantId)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/policy/users";
+            };
+
+            var chainable = this.getFactory().domainPrincipalMap(this);
 
             // prepare params (with pagination)
             var params = {};
@@ -17481,51 +18242,20 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @chained principal map
          *
          * @param [String] registrarId
-         * @param [Pagination] pagination optional pagination
          */
-        findTenants: function(registrarId, pagination)
+        findPolicyTenants: function(registrarId)
         {
             var self = this;
 
-            var registrarId = null;
-            var pagination = null;
-
-            if (arguments.length == 0)
-            {
-                // nothing to do
-            }
-            else if (arguments.length == 1)
-            {
-                var arg1 = arguments[0];
-                if (Gitana.isString(arg1))
-                {
-                    registrarId = arguments[0];
-                }
-                else
-                {
-                    pagination = arguments[1];
-                }
-            }
-            else
-            {
-                registrarId = arguments[0];
-                pagination = arguments[1];
-            }
-
             var uriFunction = function()
             {
-                return self.getUri() + "/tenants";
+                return self.getUri() + "/policy/tenants";
             };
 
             var chainable = this.getFactory().tenantMap(this);
 
-            // prepare params (with pagination)
+            // prepare params
             var params = {};
-            if (pagination)
-            {
-                Gitana.copyInto(params, pagination);
-            }
-
             if (registrarId)
             {
                 params["registrarId"] = registrarId;
@@ -18426,7 +19156,35 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param attachmentId
          */
-        unattach: Gitana.Methods.unattach()
+        unattach: Gitana.Methods.unattach(),
+
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
+
+        /**
+         * Lists the authentication grants for this principal
+         *
+         * @param pagination
+         *
+         * @chained authentication grant map
+         */
+        listAuthenticationGrants: function(pagination)
+        {
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            params.domainId = this.getDomainId();
+            params.principalId = this.getId();
+
+            var chainable = this.getFactory().authenticationGrantMap(this.getPlatform());
+            return this.chainGet(chainable, "/auth/grants", params);
+        }
+
 
     });
 
@@ -20675,11 +21433,11 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 this.__features(_features);
             }
 
-            // strip out "stats"
-            if (this["stats"] && typeof(this["stats"]) == "object")
+            // strip out "_statistics"
+            if (this["_statistics"] && typeof(this["_statistics"]) == "object")
             {
-                var stats = this["stats"];
-                delete this["stats"];
+                var stats = this["_statistics"];
+                delete this["_statistics"];
                 this.__stats(stats);
             }
 
@@ -21054,6 +21812,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             var delegate = Gitana.Methods.attach.call(this, Gitana.NodeAttachment, paramsFunction);
             return delegate.call(this, attachmentId, contentType, data);
         },
+
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri(),
+
 
         /**
          * Deletes an attachment.
@@ -21637,9 +22401,10 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          * @public
          *
          * @param [Object] object JSON object
-         * @param [String] folderPath an offset folder path where the node should be created (i.e. /root/pages/) where root is the root node to start from
+         * @param [Object|String] options a JSON object providing the configuration for the create operation.
+         *                                If a string, must follow format (<rootNode>/<filePath>)
          */
-        createNode: function(object, folderPath)
+        createNode: function(object, options)
         {
             var self = this;
 
@@ -21648,30 +22413,82 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 return self.getUri() + "/nodes";
             };
 
-            var params = null;
-            if (folderPath && folderPath.length > 0)
+            var params = {};
+
+            if (options)
             {
-                if (Gitana.startsWith(folderPath, "/")) {
-                    folderPath = folderPath.substring(1);
+                var rootNodeId = "root"; // default
+                var associationType = "a:child"; // default
+                var filePath = null;
+                var parentFolderPath = null;
+                var fileName = null;
+
+                // if they pass in a string instead of an options object, then the string can follow the format
+                // (/root/pages/file.txt) where root is the root node to start from
+                if (typeof(options) === "string")
+                {
+                    var rootPrefixedFilePath = options;
+
+                    // filePath should not start with "/"
+                    if (Gitana.startsWith(rootPrefixedFilePath, "/")) {
+                        rootPrefixedFilePath = rootPrefixedFilePath.substring(1);
+                    }
+
+                    if (rootPrefixedFilePath == "") {
+                        filePath = "/";
+                    } else {
+                        var i = rootPrefixedFilePath.indexOf("/");
+                        rootNodeId = rootPrefixedFilePath.substring(0, i);
+                        filePath = rootPrefixedFilePath.substring(i + 1);
+                    }
+                }
+                else if (typeof(options) === "object")
+                {
+                    if (options.rootNodeId) {
+                        rootNodeId = options.rootNodeId;
+                    }
+                    if (options.associationType) {
+                        associationType = options.associationType;
+                    }
+                    if (options.fileName) {
+                        fileName = options.fileName;
+                    }
+                    else if (options.filename) {
+                        fileName = options.filename;
+                    }
+                    if (options.parentFolderPath) {
+                        parentFolderPath = options.parentFolderPath;
+                    }
+                    else if (options.folderPath) {
+                        parentFolderPath = options.folderPath;
+                    }
+                    else if (options.folderpath) {
+                        parentFolderPath = options.folderpath;
+                    }
+                    if (options.filePath) {
+                        filePath = options.filePath;
+                    }
+                    else if (options.filepath) {
+                        filePath = options.filepath;
+                    }
                 }
 
-                var parentNodeId = null;
-                var parentNodePath = null;
-                var associationType = "a:child";
-
-                if (folderPath == "/") {
-                    parentNodeId = "root";
-                    parentNodePath = "/";
-                } else {
-                    var i = folderPath.indexOf("/");
-                    parentNodeId = folderPath.substring(0, i);
-                    parentNodePath = folderPath.substring(i + 1);
+                // plug in the resolved params
+                if (rootNodeId) {
+                    params.rootNodeId = rootNodeId;
                 }
-
-                params = {};
-                params.parentNodeId = parentNodeId;
-                params.parentNodePath = parentNodePath;
-                params.associationType = associationType;
+                if (associationType) {
+                    params.associationType = associationType;
+                }
+                if (fileName) {
+                    params.fileName = fileName;
+                }
+                if (filePath) {
+                    params.filePath = filePath;
+                }
+                if (parentFolderPath) {
+                    params.parentFolderPath = parentFolderPath;
+                }
             }
 
             var chainable = this.getFactory().node(this);
@@ -21896,6 +22713,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         listDefinitions: function(filter, pagination)
         {
+            if (typeof(filter) == "object")
+            {
+                pagination = filter;
+                filter = null;
+            }
+
             var self = this;
 
             var params = {};
@@ -22253,7 +23076,52 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 // NOTE: we return false to tell the chain that we'll manually call next()
                 return false;
             });
+        },
+
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ADMIN
+        //
+        ///////////////////////////////////////////////////////////////////////////////////////////////////////
+
+        adminRebuildPathIndexes: function()
+        {
+            var self = this;
+
+            return this.then(function() {
+
+                var chain = this;
+
+                // call
+                var uri = self.getUri() + "/admin/paths/index";
+                self.getDriver().gitanaPost(uri, null, {}, function(response) {
+                    chain.next();
+                });
+
+                // NOTE: we return false to tell the chain that we'll manually call next()
+                return false;
+            });
+        },
+
+        adminRebuildSearchIndexes: function()
+        {
+            var self = this;
+
+            return this.then(function() {
+
+                var chain = this;
+
+                // call
+                var uri = self.getUri() + "/admin/search/index";
+                self.getDriver().gitanaPost(uri, null, {}, function(response) {
+                    chain.next();
+                });
+
+                // NOTE: we return false to tell the chain that we'll manually call next()
+                return false;
+            });
         }
+
 
     });
 
@@ -23239,6 +24107,81 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
             var chainable = this.getFactory().nodeMap(this.getBranch());
             return this.chainPost(chainable, uriFunction, params, config);
+        },
+
+        /**
+         * Retrieves a tree structure for nested folders starting at this node (as the root).
+         *
+         * @chained node
+         *
+         * @public
+         *
+         * @param [Object] config - { "leafPath": "<leafPath>", "basePath": "<basePath>", "containers": true }
+         * @param callback the callback function to be passed the resulting tree object structure
+         */
+        loadTree: function(config, callback)
+        {
+            var self = this;
+
+            if (typeof(config) === "function")
+            {
+                callback = config;
+                config = null;
+            }
+
+            if (!config)
+            {
+                config = {};
+            }
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/tree";
+            };
+
+            var params = {};
+            if (config.leafPath)
+            {
+                params["leaf"] = config.leafPath;
+            }
+            if (config.basePath)
+            {
+                params["base"] = config.basePath;
+            }
+            if (config.containers)
+            {
+                params["containers"] = true;
+            }
+
+            return this.chainGetResponse(this, uriFunction, params).then(function(response) {
+                callback.call(this, response);
+            });
+        },
+
+        /**
+         * Resolves the path to this node relative to the given root node.
+         *
+         * @param rootNodeId
+         * @param callback
+         * @returns {*}
+         */
+        resolvePath: function(rootNodeId, callback)
+        {
+            var self = this;
+
+            var uriFunction = function()
+            {
+                return self.getUri() + "/path";
+            };
+
+            var params = {
+                "rootNodeId": rootNodeId
+            };
+
+            return this.chainGetResponse(this, uriFunction, params).then(function(response) {
+                callback.call(this, response.path);
+            });
+
         }
 
     });
@@ -23819,10 +24762,17 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param {String} formKey the form key
          * @param [Object] object the object that constitutes the form
+         * @param [String] formPath optional formPath to pass to create node
          */
-        createForm: function(formKey, formObject)
+        createForm: function(formKey, formObject, formPath)
         {
             var self = this;
+
+            if (typeof(formObject) === "string")
+            {
+                formPath = formObject;
+                formObject = null;
+            }
 
             // set up form object
             if (!formObject)
@@ -23837,7 +24787,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             var result = this.subchain(chainable);
 
             // now push our logic into a subchain that is the first thing in the result
-            result.subchain(this.getBranch()).createNode(formObject).then(function() {
+            result.subchain(this.getBranch()).createNode(formObject, formPath).then(function() {
                 var formNode = this;
 
                 // switch to definition node
@@ -24628,7 +25578,12 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          *
          * @param attachmentId
          */
-        unattach: Gitana.Methods.unattach()
+        unattach: Gitana.Methods.unattach(),
+
+        /**
+         * Generates a URI to a preview resource.
+         */
+        getPreviewUri: Gitana.Methods.getPreviewUri()
 
     });
 
@@ -24751,7 +25706,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         clone: function()
         {
-            return this.getFactory().webHost(this.getPlatform(), this);
+            return this.getFactory().webhost(this.getPlatform(), this);
         },
 
         getUrlPatterns: function()
@@ -24797,8 +25752,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             object["applicationId"] = applicationId;
             object["clientKey"] = clientKey;
 
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/autoclientmappings";
+            };
+
             var chainable = this.getFactory().autoClientMapping(this);
-            return this.chainCreate(chainable, object, this.getUri() + "/autoclientmappings");
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -24816,8 +25776,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/autoclientmappings";
+            };
+
             var chainable = this.getFactory().autoClientMappingMap(this);
-            return this.chainGet(chainable, this.getUri() + "/autoclientmappings", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -24945,8 +25910,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             object["scope"] = scope;
             object["platformId"] = platformId;
 
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/trusteddomainmappings";
+            };
+
             var chainable = this.getFactory().trustedDomainMapping(this);
-            return this.chainCreate(chainable, object, this.getUri() + "/trusteddomainmappings");
+            return this.chainCreate(chainable, object, uriFunction);
         },
 
         /**
@@ -24964,8 +25934,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/trusteddomainmappings";
+            };
+
             var chainable = this.getFactory().trustedDomainMappingMap(this);
-            return this.chainGet(chainable, this.getUri() + "/trusteddomainmappings", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -25081,8 +26056,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                 Gitana.copyInto(params, pagination);
             }
 
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/applications";
+            };
+
             var chainable = this.getFactory().deployedApplicationMap(this);
-            return this.chainGet(chainable, this.getUri() + "/applications", params);
+            return this.chainGet(chainable, uriFunction, params);
         },
 
         /**
@@ -25094,8 +26074,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         readDeployedApplication: function(deployedApplicationId)
         {
+            var uriFunction = function()
+            {
+                return "/webhosts/" + this.getId() + "/applications/" + deployedApplicationId;
+            };
+
             var chainable = this.getFactory().deployedApplication(this);
-            return this.chainGet(chainable, this.getUri() + "/applications/" + deployedApplicationId);
+            return this.chainGet(chainable, uriFunction);
         },
 
         /**
@@ -25206,7 +26191,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         clone: function()
         {
-            return this.getFactory().webHostMap(this.getPlatform(), this);
+            return this.getFactory().webhostMap(this.getPlatform(), this);
         },
 
         /**
@@ -25214,7 +26199,7 @@ Gitana.OAuth2Http.COOKIE = "cookie";
          */
         buildObject: function(json)
         {
-            return this.getFactory().webHost(this.getPlatform(), json);
+            return this.getFactory().webhost(this.getPlatform(), json);
         }
 
     });
@@ -25266,6 +26251,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
              * @returns {String} The Gitana Web Host id
              */
             this.getWebHostId = function() { return webhost.getId(); };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().autoClientMapping(this.getWebHost(), this);
         },
 
         /**
@@ -25434,6 +26427,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
         },
 
         /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().trustedDomainMapping(this.getWebHost(), this);
+        },
+
+        /**
          * @OVERRIDE
          */
         getType: function()
@@ -25571,6 +26572,14 @@ Gitana.OAuth2Http.COOKIE = "cookie";
              * @returns {String} The Gitana Web Host id
              */
             this.getWebHostId = function() { return webhost.getId(); };
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().deployedApplication(this.getWebHost(), this);
         },
 
         /**
@@ -26044,24 +27053,68 @@ Gitana.OAuth2Http.COOKIE = "cookie";
             };
 
             this.cache = Gitana.MemoryCache();
+
+            this.chainedCacheItem = function(key)
+            {
+                var chained = null;
+
+                if (this.cache(key))
+                {
+                    chained = Chain(this.cache(key));
+                }
+
+                return chained;
+            }
         },
 
         init: function(callback)
         {
             var self = this;
 
+            var p = function(application)
+            {
+                // THIS = application
+
+                var projectId = application["projectId"];
+                if (projectId)
+                {
+                    // read the project
+                    Chain(self.getPlatform()).trap(function(err) {
+
+                        // could not find the project for the application
+                        // this is fine... we are done
+                        callback();
+
+                    }).readProject(projectId).then(function() {
+
+                        self.cache("project", this);
+
+                        callback();
+
+                    });
+                }
+                else
+                {
+                    callback();
+                }
+            };
+
             Chain(self.getPlatform()).trap(function(err) {
 
-                // application not found
+                // ERROR: application not found
+
                 callback(err);
 
             }).readApplication(self.getApplicationId()).then(function() {
                 self.cache("application", this);
 
-                Chain(self.getPlatform()).trap(function(err) {
+                var application = this;
 
-                    // could not locate the application in the stack
-                    callback(err);
+                this.subchain(self.getPlatform()).trap(function(err) {
+
+                    // could not locate the stack for the application
+                    // this is perfectly fine (just means an application isn't allocated to a stack)
+                    p(application);
 
                 }).findStackForDataStore(Gitana.TypedIDConstants.TYPE_APPLICATION, self.getApplicationId()).then(function() {
 
@@ -26072,12 +27125,13 @@ Gitana.OAuth2Http.COOKIE = "cookie";
                         this["_doc"] = this["datastoreId"];
                         delete this["datastoreTypeId"];
                         self.cache("stack.datastore." + key, this);
-                    }).then(function() {
+                    });
 
-                        callback();
-
+                    this.then(function() {
+                        p(application);
                     });
                 });
+
             });
         },
 
@@ -26088,18 +27142,24 @@ Gitana.OAuth2Http.COOKIE = "cookie";
 
         application: function()
         {
-            return Chain(this.cache("application"));
+            return this.chainedCacheItem("application");
         },
 
         stack: function()
         {
-            return Chain(this.cache("stack"));
+            return this.chainedCacheItem("stack");
         },
 
         datastore: function(key)
         {
-            return Chain(this.cache("stack.datastore." + key));
+            return this.chainedCacheItem("stack.datastore." + key);
+        },
+
+        project: function()
+        {
+            return this.chainedCacheItem("project");
         }
+
     });
 
 })(window);

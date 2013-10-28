@@ -753,6 +753,7 @@ if (typeof JSON !== 'object') {
                 "baseURL": "/proxy",
                 "locale": null,
                 "application": null,
+                "loadAppHelper": true,
                 "storage": null
             };
             Gitana.copyKeepers(config, Gitana.loadDefaultConfig());
@@ -1386,7 +1387,8 @@ if (typeof JSON !== 'object') {
                 "password": null,
                 "accessToken": null,
                 "ticket": null,
-                "cookie": null
+                "cookie": null,
+                "ticketMaxAge": null
             };
             Gitana.copyKeepers(config, Gitana.loadDefaultConfig());
             Gitana.copyKeepers(config, settings);
@@ -1398,6 +1400,12 @@ if (typeof JSON !== 'object') {
             var doAuthenticate = function()
             {
                 var platform = this;
+
+                // params to /auth/info
+                var authInfoParams = {};
+                if (config.ticketMaxAge) {
+                    authInfoParams.ticketMaxAge = config.ticketMaxAge;
+                }
 
                 // we provide a fallback if no flow type is specified, using "password" flow with guest/guest
                 if (!config.code && !config.username && !config.accessToken && !config.cookie && !config.ticket)
@@ -1418,7 +1426,7 @@ if (typeof JSON !== 'object') {
                     driver.currentPlatform = null;
 
                     // fetch the auth info
-                    driver.gitanaGet("/auth/info", {}, function(response) {
+                    driver.gitanaGet("/auth/info", authInfoParams, function(response) {
 
                         var authInfo = new Gitana.AuthInfo(response);
                         driver.setAuthInfo(authInfo);
@@ -1458,7 +1466,7 @@ if (typeof JSON !== 'object') {
                     driver.currentPlatform = null;
 
                     // retrieve auth info and plug into the driver
-                    driver.gitanaGet("/auth/info", {}, function(response) {
+                    driver.gitanaGet("/auth/info", authInfoParams, function(response) {
                         var authInfo = new Gitana.AuthInfo(response);
                         driver.setAuthInfo(authInfo);
 
@@ -1497,7 +1505,7 @@ if (typeof JSON !== 'object') {
                     driver.currentPlatform = null;
 
                     // fetch the auth info
-                    driver.gitanaGet("/auth/info", {}, function(response) {
+                    driver.gitanaGet("/auth/info", authInfoParams, function(response) {
 
                         var authInfo = new Gitana.AuthInfo(response);
                         driver.setAuthInfo(authInfo);
@@ -1536,7 +1544,7 @@ if (typeof JSON !== 'object') {
                     driver.currentPlatform = null;
 
                     // fetch the auth info
-                    driver.gitanaGet("/auth/info", {}, function(response) {
+                    driver.gitanaGet("/auth/info", authInfoParams, function(response) {
 
                         var authInfo = new Gitana.AuthInfo(response);
                         driver.setAuthInfo(authInfo);
@@ -1576,7 +1584,7 @@ if (typeof JSON !== 'object') {
                     driver.currentPlatform = null;
 
                     // fetch the auth info
-                    driver.gitanaGet("/auth/info", {}, function(response) {
+                    driver.gitanaGet("/auth/info", authInfoParams, function(response) {
 
                         var authInfo = new Gitana.AuthInfo(response);
                         driver.setAuthInfo(authInfo);
@@ -1955,6 +1963,12 @@ if (typeof JSON !== 'object') {
             }
         }
 
+        // default to load app helper if not defined
+        if (typeof(config.loadAppHelper) == "undefined")
+        {
+            config.loadAppHelper = true;
+        }
+
         // this gets called once the platform is drawn from cache or created
         // fires the callback and passes in the platform or the app helper
         var setupContext = function(platformCacheKey)
@@ -1963,27 +1977,36 @@ if (typeof JSON !== 'object') {
 
             // if their configuration contains the "application" setting, then auto-load the app() context
             // note that config.application could be undefined (we require explicit NULL here for copyKeepers)
-            var appConfig = {
-                "application": (config.application ? config.application: null)
-            };
-            Gitana.copyKeepers(appConfig, Gitana.loadDefaultConfig());
-            Gitana.copyKeepers(appConfig, this.getDriver().getOriginalConfiguration());
-            if (appConfig.application) {
-
-                var appSettings = {
-                    "application": appConfig.application
+            if (config.loadAppHelper)
+            {
+                var appConfig = {
+                    "application": (config.application ? config.application: null)
                 };
-                if (platformCacheKey) {
-                    appSettings.appCacheKey = platformCacheKey + "_" + appConfig.application
-                }
-                this.app(appSettings, function(err) {
-                    if (callback) {
-                        // NOTE: this == app helper
-                        callback.call(this, err);
+                Gitana.copyKeepers(appConfig, Gitana.loadDefaultConfig());
+                Gitana.copyKeepers(appConfig, this.getDriver().getOriginalConfiguration());
+                if (appConfig.application) {
+
+                    var appSettings = {
+                        "application": appConfig.application
+                    };
+                    if (platformCacheKey) {
+                        appSettings.appCacheKey = platformCacheKey + "_" + appConfig.application
                     }
-                });
+                    this.app(appSettings, function(err) {
+                        if (callback) {
+                            // NOTE: this == app helper
+                            callback.call(this, err);
+                        }
+                    });
+                }
+                else {
+                    if (callback) {
+                        callback.call(this);
+                    }
+                }
             }
-            else {
+            else
+            {
                 if (callback) {
                     callback.call(this);
                 }
@@ -4286,7 +4309,7 @@ Gitana.OAuth2Http.TICKET = "ticket";
                 var identifiers = this.extractPrincipalIdentifiers(principal, defaultDomainId);
 
                 return identifiers["domain"] + "/" + identifiers["principal"];
-            },
+            };
 
             /**
              * Helper to gets the principal id for a principal object, json structure or principal id itself.
@@ -4322,6 +4345,11 @@ Gitana.OAuth2Http.TICKET = "ticket";
                 {
                     identifiers["domain"] = principal.getDomainId();
                     identifiers["principal"] = principal.getId();
+                }
+                else if (principal.objectType && principal.objectType() == "Gitana.TeamMember")
+                {
+                    identifiers["domain"] = principal["domainId"];
+                    identifiers["principal"] = principal["_doc"];
                 }
                 else if (principal["_doc"])
                 {
@@ -6008,6 +6036,15 @@ Gitana.OAuth2Http.TICKET = "ticket";
             return new Gitana.ActivityMap(datastore, object);
         },
 
+        role: function(cluster, roleContainer, object)
+        {
+            return new Gitana.Role(cluster, roleContainer, object);
+        },
+
+        roleMap: function(cluster, roleContainer, object)
+        {
+            return new Gitana.RoleMap(cluster, roleContainer, object);
+        },
 
 
         //////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -7871,6 +7908,105 @@ Gitana.OAuth2Http.TICKET = "ticket";
 
 
 
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ROLE CONTAINER
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Reads a role.
+         *
+         * @param roleKeyOrId
+         * @param inherited whether to check inherited role containers
+         *
+         * @chainable role
+         */
+        readRole: function(roleKeyOrId, inherited)
+        {
+            var params = {};
+
+            if (inherited)
+            {
+                params.inherited = true;
+            }
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles/" + roleKeyOrId;
+            };
+
+            var chainable = this.getFactory().role(this.getCluster(), this);
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Lists roles.
+         *
+         * @param inherited whether to draw from inherited role containers
+         *
+         * @chainable map of teams
+         */
+        listRoles: function(inherited)
+        {
+            var params = {};
+
+            if (inherited)
+            {
+                params.inherited = true;
+            }
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles";
+            };
+
+            var chainable = this.getFactory().roleMap(this.getCluster(), this);
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Creates a role.
+         *
+         * @param roleKey
+         * @param object
+         *
+         * @chainable team
+         */
+        createRole: function(roleKey, object)
+        {
+            if (!object)
+            {
+                object = {};
+            }
+            object.roleKey = roleKey;
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles";
+            };
+
+            var self = this;
+
+            var chainable = this.getFactory().role(this.getPlatform(), this, roleKey);
+            return this.chainPostResponse(chainable, uriFunction, {}, object).then(function() {
+                this.subchain(self).readRole(roleKey).then(function() {
+                    Gitana.copyInto(chainable, this);
+                });
+            });
+        },
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // END OF ROLE CONTAINER
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+
         //////////////////////////////////////////////////////////////////////////////////////////
         //
         // COMMON DATA STORE THINGS
@@ -8492,6 +8628,11 @@ Gitana.OAuth2Http.TICKET = "ticket";
             return this.teamable.getUri() + "/teams/" + this.teamKey;
         },
 
+        getType: function()
+        {
+            return "team";
+        },
+
         /**
          * Delete
          *
@@ -8513,7 +8654,7 @@ Gitana.OAuth2Http.TICKET = "ticket";
         /**
          * Reload
          *
-         * @chained security group
+         * @chained team
          *
          * @public
          */
@@ -8530,7 +8671,7 @@ Gitana.OAuth2Http.TICKET = "ticket";
         /**
          * Update
          *
-         * @chained security group
+         * @chained team
          *
          * @public
          */
@@ -9132,6 +9273,177 @@ Gitana.OAuth2Http.TICKET = "ticket";
         buildObject: function(json)
         {
             return this.getFactory().activity(this.getDataStore(), json);
+        }
+
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.Role = Gitana.AbstractObject.extend(
+    /** @lends Gitana.Role.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractObject
+         *
+         * @class Role
+         *
+         * @param {Gitana.Cluster} cluster
+         * @param {Object} roleContainer
+         * @param {String} roleKey
+         * @param [Object] object json object (if no callback required for populating)
+         */
+        constructor: function(cluster, roleContainer, object)
+        {
+            this.base(cluster.getDriver(), object);
+
+            this.objectType = function() { return "Gitana.Role"; };
+
+            this.roleContainer = roleContainer;
+
+            this.getCluster = function()
+            {
+                return cluster;
+            };
+        },
+
+        getUri: function()
+        {
+            return this.roleContainer.getUri() + "/roles/" + this.getId();
+        },
+
+        getType: function()
+        {
+            return "role";
+        },
+
+        /**
+         * Delete
+         *
+         * @chained team
+         *
+         * @public
+         */
+        del: function()
+        {
+            var uriFunction = function()
+            {
+                return this.getUri();
+            };
+
+            // NOTE: pass control back to the role container
+            return this.chainDelete(this.roleContainer, uriFunction);
+        },
+
+        /**
+         * Reload
+         *
+         * @chained role
+         *
+         * @public
+         */
+        reload: function()
+        {
+            var uriFunction = function()
+            {
+                return this.getUri();
+            };
+
+            return this.chainReload(null, uriFunction);
+        },
+
+        /**
+         * Update
+         *
+         * @chained team
+         *
+         * @public
+         */
+        update: function()
+        {
+            var uriFunction = function()
+            {
+                return this.getUri();
+            };
+
+            return this.chainUpdate(null, uriFunction);
+        },
+
+        //////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ACCESSORS
+        //
+        //////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Returns the role key
+         */
+        getRoleKey: function()
+        {
+            return this.roleKey;
+        },
+
+        getPermissions: function()
+        {
+            return this.object["permissions"];
+        }
+    });
+
+})(window);
+(function(window)
+{
+    var Gitana = window.Gitana;
+    
+    Gitana.RoleMap = Gitana.AbstractMap.extend(
+    /** @lends Gitana.RoleMap.prototype */
+    {
+        /**
+         * @constructs
+         * @augments Gitana.AbstractMap
+         *
+         * @class Map of roles
+         *
+         * @param {Gitana.Cluster} cluster Gitana cluster instance.
+         * @param {Object} role container
+         * @param [Object] object
+         */
+        constructor: function(cluster, roleContainer, object)
+        {
+            this.objectType = function() { return "Gitana.RoleMap"; };
+
+            this.getCluster = function()
+            {
+                return cluster;
+            };
+
+            //////////////////////////////////////////////////////////////////////////////////////////////
+            //
+            // CALL THROUGH TO BASE CLASS (at the end)
+            //
+            //////////////////////////////////////////////////////////////////////////////////////////////
+
+            this.base(cluster.getDriver(), object);
+
+            this.roleContainer = roleContainer;
+        },
+
+        /**
+         * @override
+         */
+        clone: function()
+        {
+            return this.getFactory().roleMap(this.getCluster(), this.roleContainer, this);
+        },
+
+        /**
+         * @param json
+         */
+        buildObject: function(json)
+        {
+            return this.getFactory().role(this.getCluster(), this.roleContainer, json);
         }
 
     });
@@ -12094,6 +12406,125 @@ Gitana.OAuth2Http.TICKET = "ticket";
 
                 callback.call(Chain(helper));
             });
+        },
+
+
+
+        /**
+         * Retrieves authorities and permissions for multiple reference/principal combinations.
+         *
+         * Example of entries array:
+         *
+         * [{
+         *    "permissioned": "<permissionedReference>",
+         *    "principalId": "<principalId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissioned": "<permissionedReference>",
+         *    "principalId": "<principalId>",
+         *    "authorities": [...],
+         *    "permissions": [...]
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        accessLookups: function(entries, callback)
+        {
+            var uriFunction = function()
+            {
+                return "/access/lookup";
+            };
+
+            var object = {
+                "entries": entries
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["entries"]);
+            });
+        },
+
+        /**
+         * Retrieves authorities and permissions for multiple reference/principal combinations.
+         *
+         * Example of entries array:
+         *
+         * [{
+         *    "permissioned": "<permissionedReference>",
+         *    "principalId": "<principalId>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "permissioned": "<permissionedReference>",
+         *    "principalId": "<principalId>",
+         *    "permissionId|authorityId": "<permissionId|authorityId>",
+         *    "hasPermission|hasAuthority": true | false
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        accessChecks: function(entries, callback)
+        {
+            var uriFunction = function()
+            {
+                return "/access/check";
+            };
+
+            var object = {
+                "entries": entries
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["entries"]);
+            });
+        },
+
+        /**
+         * Reads one or more referenceable objects by reference id.
+         *
+         * Example of entries array:
+         *
+         * [{
+         *    "ref": "<reference>"
+         * }]
+         *
+         * The callback receives an array of results, example:
+         *
+         * [{
+         *    "ref": "<reference>",
+         *    "entry": { ... object }
+         * }]
+         *
+         * The order of elements in the array will be the same for checks and results.
+         *
+         * @param checks
+         * @param callback
+         */
+        referenceReads: function(entries, callback)
+        {
+            var uriFunction = function()
+            {
+                return "/ref/read";
+            };
+
+            var object = {
+                "entries": entries
+            };
+
+            return this.chainPostResponse(this, uriFunction, {}, object).then(function(response) {
+                callback.call(this, response["entries"]);
+            });
         }
 
     });
@@ -12598,6 +13029,106 @@ Gitana.OAuth2Http.TICKET = "ticket";
         // END OF TEAMABLE
         //
         //////////////////////////////////////////////////////////////////////////////////////////
+
+
+
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // ROLE CONTAINER
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+        /**
+         * Reads a role.
+         *
+         * @param roleKeyOrId
+         * @param inherited whether to check inherited role containers
+         *
+         * @chainable role
+         */
+        readRole: function(roleKeyOrId, inherited)
+        {
+            var params = {};
+
+            if (inherited)
+            {
+                params.inherited = true;
+            }
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles/" + roleKeyOrId;
+            };
+
+            var chainable = this.getFactory().role(this.getCluster(), this);
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Lists roles.
+         *
+         * @param inherited whether to draw from inherited role containers
+         *
+         * @chainable map of teams
+         */
+        listRoles: function(inherited)
+        {
+            var params = {};
+
+            if (inherited)
+            {
+                params.inherited = true;
+            }
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles";
+            };
+
+            var chainable = this.getFactory().roleMap(this.getCluster(), this);
+            return this.chainGet(chainable, uriFunction, params);
+        },
+
+        /**
+         * Creates a role.
+         *
+         * @param roleKey
+         * @param object
+         *
+         * @chainable team
+         */
+        createRole: function(roleKey, object)
+        {
+            if (!object)
+            {
+                object = {};
+            }
+            object.roleKey = roleKey;
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/roles";
+            };
+
+            var self = this;
+
+            var chainable = this.getFactory().role(this.getPlatform(), this, roleKey);
+            return this.chainPostResponse(chainable, uriFunction, {}, object).then(function() {
+                this.subchain(self).readRole(roleKey).then(function() {
+                    Gitana.copyInto(chainable, this);
+                });
+            });
+        },
+
+        //////////////////////////////////////////////////////////////////////////////////////////
+        //
+        // END OF ROLE CONTAINER
+        //
+        //////////////////////////////////////////////////////////////////////////////////////////
+
+
+
 
 
 
@@ -19183,8 +19714,34 @@ Gitana.OAuth2Http.TICKET = "ticket";
 
             var chainable = this.getFactory().authenticationGrantMap(this.getPlatform());
             return this.chainGet(chainable, "/auth/grants", params);
-        }
+        },
 
+        /**
+         * Lists the teams that this principal belongs to against the given teamable
+         *
+         * @param teamable
+         * @param pagination (optional)
+         */
+        listTeamMemberships: function(teamable, pagination)
+        {
+            var params = {
+                "teamableType": teamable.getType(),
+                "teamableId": teamable.getId()
+            };
+
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                return this.getUri() + "/teams";
+            };
+
+            var chainable = this.getFactory().teamMap(this.getCluster(), this);
+            return this.chainGet(chainable, uriFunction, params);
+        }
 
     });
 
@@ -23120,8 +23677,26 @@ Gitana.OAuth2Http.TICKET = "ticket";
                 // NOTE: we return false to tell the chain that we'll manually call next()
                 return false;
             });
-        }
+        },
 
+        adminContentMaintenance: function()
+        {
+            var self = this;
+
+            return this.then(function() {
+
+                var chain = this;
+
+                // call
+                var uri = self.getUri() + "/admin/content";
+                self.getDriver().gitanaPost(uri, null, {}, function(response) {
+                    chain.next();
+                });
+
+                // NOTE: we return false to tell the chain that we'll manually call next()
+                return false;
+            });
+        }
 
     });
 

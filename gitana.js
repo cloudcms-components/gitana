@@ -3858,6 +3858,12 @@ Gitana.OAuth2Http.TICKET = "ticket";
             };
         }
 
+        // apply auto trap?
+        if (autoTrap())
+        {
+            proxiedObject.trap(autoTrap());
+        }
+
         return proxiedObject;
     };
 
@@ -3950,6 +3956,17 @@ Gitana.OAuth2Http.TICKET = "ticket";
         Gitana.copyInto(clone, object);
 
         return clone;
+    };
+
+    var autoTrapValue = null;
+    var autoTrap = Chain.autoTrap = function(_autoTrap)
+    {
+        if (_autoTrap)
+        {
+            autoTrapValue = _autoTrap;
+        }
+
+        return autoTrapValue;
     };
 
     Chain.idCount = 0;
@@ -17076,6 +17093,30 @@ Gitana.OAuth2Http.TICKET = "ticket";
             return this.chainGetResponse(this, uriFunction, {}).then(function(response) {
                 callback(response);
             });
+        },
+
+        /**
+         * Resets the warehouse.  This requires ADMIN, MANAGER or OWNER authorities against the warehouse.
+         *
+         * @returns {*}
+         */
+        reset: function()
+        {
+            var self = this;
+
+            return this.then(function() {
+
+                var chain = this;
+
+                // call
+                var uri = self.getUri() + "/reset";
+                self.getDriver().gitanaPost(uri, null, {}, function(response) {
+                    chain.next();
+                });
+
+                // NOTE: we return false to tell the chain that we'll manually call next()
+                return false;
+            });
         }
 
     });
@@ -19388,13 +19429,15 @@ Gitana.OAuth2Http.TICKET = "ticket";
          */
         listEntries: function(pagination)
         {
+            var self = this;
+
             var params = {};
             if (pagination)
             {
                 Gitana.copyInto(params, pagination);
             }
 
-            var chainable = this.getFactory().interactionReportEntryMap(this);
+            var chainable = this.getFactory().interactionReportEntryMap(self.getWarehouse());
             return this.chainGet(chainable, this.getUri() + "/entries", params);
         },
 
@@ -19407,7 +19450,9 @@ Gitana.OAuth2Http.TICKET = "ticket";
          */
         readEntry: function(interactionReportEntryId)
         {
-            var chainable = this.getFactory().interactionReportEntry(this);
+            var self = this;
+
+            var chainable = this.getFactory().interactionReportEntry(self.getWarehouse());
             return this.chainGet(chainable, this.getUri() + "/entries/" + interactionReportEntryId);
         },
 
@@ -19434,7 +19479,7 @@ Gitana.OAuth2Http.TICKET = "ticket";
                 return self.getUri() + "/entries/query";
             };
 
-            var chainable = this.getFactory().interactionReportEntryMap(this);
+            var chainable = this.getFactory().interactionReportEntryMap(self.getWarehouse());
             return this.chainPost(chainable, uriFunction, params, query);
         }
 
@@ -25431,6 +25476,61 @@ Gitana.OAuth2Http.TICKET = "ticket";
             return this.chainGet(chainable, uriFunction, params);
         },
 
+        /**
+         * Queries for relatives of this node.
+         *
+         * @chained node map
+         *
+         * @public
+         *
+         * @param {Object} query
+         * @param {Object} config
+         * @param [Object] pagination
+         */
+        queryRelatives: function(query, config, pagination)
+        {
+            var type = null;
+            var direction = null;
+
+            if (config)
+            {
+                type = config.type;
+                if (config.direction)
+                {
+                    direction = config.direction.toUpperCase();
+                }
+            }
+
+            var params = {};
+            if (pagination)
+            {
+                Gitana.copyInto(params, pagination);
+            }
+
+            var uriFunction = function()
+            {
+                var url = "/repositories/" + this.getRepositoryId() + "/branches/" + this.getBranchId() + "/nodes/" + this.getId() + "/relatives/query";
+                if (type)
+                {
+                    url = url + "?type=" + type;
+                }
+                if (direction)
+                {
+                    if (type)
+                    {
+                        url = url + "&direction=" + direction;
+                    }
+                    else
+                    {
+                        url = url + "?direction=" + direction;
+                    }
+                }
+                return url;
+            };
+
+            var chainable = this.getFactory().nodeMap(this.getBranch());
+            return this.chainPost(chainable, uriFunction, params, query);
+        },
 
         /**
          * Retrieves all of the association objects for this node.

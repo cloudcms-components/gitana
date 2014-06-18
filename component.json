@@ -1,6 +1,6 @@
 {
     "name": "gitana",
-    "version": "1.0.94",
+    "version": "1.0.96",
     "main": ["gitana.js"],
     "dependencies": {
     }
